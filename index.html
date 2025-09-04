@@ -72,14 +72,19 @@
             transition: all 0.3s;
         }
         
-        .price-card.positive { 
+        .price-card.bullish { 
             border-color: #00ff88; 
             box-shadow: 0 0 20px rgba(0, 255, 136, 0.2); 
         }
         
-        .price-card.negative { 
+        .price-card.bearish { 
             border-color: #ff4757; 
             box-shadow: 0 0 20px rgba(255, 71, 87, 0.2); 
+        }
+        
+        .price-card.neutral { 
+            border-color: #feca57; 
+            box-shadow: 0 0 20px rgba(254, 202, 87, 0.2); 
         }
         
         .coin-header { 
@@ -92,6 +97,15 @@
         .coin-name { 
             font-size: 20px; 
             font-weight: bold; 
+        }
+        
+        .coin-score {
+            font-size: 16px;
+            font-weight: bold;
+            padding: 5px 10px;
+            border-radius: 8px;
+            background: rgba(72, 202, 228, 0.2);
+            color: #48cae4;
         }
         
         .coin-price { 
@@ -110,14 +124,19 @@
             margin-bottom: 15px;
         }
         
-        .positive .price-change { 
+        .bullish .price-change { 
             background: rgba(0, 255, 136, 0.2); 
             color: #00ff88; 
         }
         
-        .negative .price-change { 
+        .bearish .price-change { 
             background: rgba(255, 71, 87, 0.2); 
             color: #ff4757; 
+        }
+        
+        .neutral .price-change { 
+            background: rgba(254, 202, 87, 0.2); 
+            color: #feca57; 
         }
         
         .trading-info {
@@ -126,6 +145,25 @@
             border-radius: 10px;
             padding: 15px;
             margin-top: 15px;
+        }
+        
+        .strategy-direction {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .long-strategy {
+            color: #00ff88;
+        }
+        
+        .short-strategy {
+            color: #ff4757;
+        }
+        
+        .hold-strategy {
+            color: #feca57;
         }
         
         .trading-grid {
@@ -270,6 +308,22 @@
             border-radius: 10px;
             font-size: 12px;
             color: #666;
+        }
+        
+        @media (max-width: 768px) {
+            .price-cards { 
+                grid-template-columns: 1fr; 
+            }
+            
+            .checklist-header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            
+            .trading-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -460,6 +514,65 @@
             ];
         }
         
+        // 개별 코인 점수 계산 (6단계 체크리스트 기반)
+        function calculateCoinScore(coin) {
+            let score = 0;
+            
+            // 거시환경 (가격 대비)
+            if (coin.symbol === 'BTC' && coin.price > 95000) score += 20;
+            else if (coin.symbol === 'ETH' && coin.price > 3500) score += 18;
+            else if (coin.price > 0) score += 15;
+            
+            // 24시간 변화율
+            if (coin.change > 5) score += 25;
+            else if (coin.change > 2) score += 20;
+            else if (coin.change > 0) score += 15;
+            else if (coin.change > -2) score += 10;
+            else score += 5;
+            
+            // 거래량 (시장 활성도)
+            if (coin.volume > 20000000000) score += 25;
+            else if (coin.volume > 10000000000) score += 20;
+            else if (coin.volume > 5000000000) score += 15;
+            else score += 10;
+            
+            // 시가총액 (안정성)
+            if (coin.marketCap > 1000000000000) score += 20;
+            else if (coin.marketCap > 100000000000) score += 15;
+            else if (coin.marketCap > 50000000000) score += 12;
+            else score += 8;
+            
+            // 기술적 분석 (변화율 기반)
+            if (Math.abs(coin.change) < 1) score += 20; // 안정적
+            else if (Math.abs(coin.change) < 3) score += 15;
+            else score += 10;
+            
+            // 전략 점수
+            if (coin.change > 0 && coin.volume > 5000000000) score += 10;
+            else if (coin.change > -1) score += 7;
+            else score += 3;
+            
+            // 추가 점수 (AI/미래 기술)
+            if (coin.symbol === 'SOL' || coin.symbol === 'ETH') score += 5; // AI/DeFi 관련
+            
+            return Math.min(140, Math.max(0, score));
+        }
+        
+        // 전략 방향 결정 (롱/숏/홀드)
+        function getStrategyDirection(coinScore, change) {
+            if (coinScore >= 100 && change > 0) {
+                return { direction: 'LONG', class: 'long-strategy', signal: '📈 강력 매수' };
+            } else if (coinScore >= 80 && change > -1) {
+                return { direction: 'LONG', class: 'long-strategy', signal: '📈 매수' };
+            } else if (coinScore <= 40 && change < -2) {
+                return { direction: 'SHORT', class: 'short-strategy', signal: '📉 매도/숏' };
+            } else if (coinScore <= 60 && change < 0) {
+                return { direction: 'SHORT', class: 'short-strategy', signal: '📉 약세' };
+            } else {
+                return { direction: 'HOLD', class: 'hold-strategy', signal: '⚖️ 관망' };
+            }
+        }
+        
         // 체크리스트 점수 계산
         function calculateChecklistScores() {
             if (!cryptoData || cryptoData.length === 0) return 0;
@@ -480,33 +593,28 @@
             return checklistItems.reduce((sum, item) => sum + item.score, 0);
         }
         
-        // 트레이딩 가격 계산 (현재 실시간 가격 기반)
-        function calculateTradingPrices(coin, totalScore) {
+        // 트레이딩 가격 계산 (롱/숏 구분)
+        function calculateTradingPrices(coin, strategy) {
             const currentPrice = parseFloat(coin.price) || 0;
             if (currentPrice === 0) return { entry: 0, target: 0, stop: 0, rr: '0' };
             
             let entryPrice, targetPrice, stopLoss, riskReward;
             
-            if (totalScore >= 120) {
-                // 강세장 - 공격적
-                entryPrice = currentPrice * 1.001;  // 0.1% 위
-                targetPrice = currentPrice * 1.12;  // 12% 목표
-                stopLoss = currentPrice * 0.97;     // 3% 손절
-            } else if (totalScore >= 100) {
-                // 상승장 - 일반
-                entryPrice = currentPrice * 1.002;  // 0.2% 위
-                targetPrice = currentPrice * 1.08;  // 8% 목표
+            if (strategy.direction === 'LONG') {
+                // 롱 포지션
+                entryPrice = currentPrice * 1.002;  // 0.2% 위에서 진입
+                targetPrice = currentPrice * 1.08;  // 8% 수익 목표
                 stopLoss = currentPrice * 0.95;     // 5% 손절
-            } else if (totalScore >= 80) {
-                // 횡보장 - 보수적
-                entryPrice = currentPrice * 0.998;  // 0.2% 아래
-                targetPrice = currentPrice * 1.05;  // 5% 목표
-                stopLoss = currentPrice * 0.93;     // 7% 손절
+            } else if (strategy.direction === 'SHORT') {
+                // 숏 포지션
+                entryPrice = currentPrice * 0.998;  // 0.2% 아래에서 진입
+                targetPrice = currentPrice * 0.92;  // 8% 하락 목표
+                stopLoss = currentPrice * 1.05;     // 5% 손절
             } else {
-                // 약세장 - 방어적
-                entryPrice = currentPrice * 0.995;  // 0.5% 아래
-                targetPrice = currentPrice * 0.92;  // 8% 하락 목표 (숏)
-                stopLoss = currentPrice * 1.03;     // 3% 손절 (숏)
+                // 홀드/관망
+                entryPrice = currentPrice;
+                targetPrice = currentPrice * 1.03;  // 3% 목표
+                stopLoss = currentPrice * 0.97;     // 3% 손절
             }
             
             const risk = Math.abs(entryPrice - stopLoss);
@@ -542,26 +650,35 @@
             
             let html = '';
             cryptoData.forEach(coin => {
-                const isPositive = coin.change >= 0;
-                const prices = calculateTradingPrices(coin, totalScore);
+                const coinScore = calculateCoinScore(coin);
+                const strategy = getStrategyDirection(coinScore, coin.change);
+                const prices = calculateTradingPrices(coin, strategy);
+                
+                let cardClass = 'neutral';
+                if (strategy.direction === 'LONG') cardClass = 'bullish';
+                else if (strategy.direction === 'SHORT') cardClass = 'bearish';
                 
                 html += `
-                    <div class="price-card ${isPositive ? 'positive' : 'negative'}">
+                    <div class="price-card ${cardClass}">
                         <div class="coin-header">
                             <div class="coin-name">${coin.icon} ${coin.symbol}</div>
-                            <div style="font-size: 12px; color: #666;">${coin.name}</div>
+                            <div class="coin-score">${coinScore}/140</div>
                         </div>
                         <div class="coin-price">
                             $${formatPrice(coin.price)}
                         </div>
                         <div class="price-change">
-                            ${isPositive ? '+' : ''}${coin.change.toFixed(2)}%
+                            ${coin.change >= 0 ? '+' : ''}${coin.change.toFixed(2)}%
+                        </div>
+                        
+                        <div class="strategy-direction ${strategy.class}">
+                            ${strategy.signal}
                         </div>
                         
                         <div class="trading-info">
                             <div class="trading-grid">
                                 <div class="trading-item">
-                                    <span class="trading-label">진입가:</span>
+                                    <span class="trading-label">${strategy.direction === 'SHORT' ? '숏 진입가:' : '롱 진입가:'}</span>
                                     <span class="trading-value entry-price">$${formatPrice(prices.entry)}</span>
                                 </div>
                                 <div class="trading-item">
