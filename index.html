@@ -473,7 +473,7 @@
 
     <script>
         // API 키 설정 (CoinGecko PRO)
-        const API_KEY = 'CG-ZV7ToDsr5KrLxjFKVtTMTrW4';
+        const API_KEY = 'CG-AJku92n1VmZV1ZQ2mp46DA2C';
         let countdown = 60;
         let cryptoData = [];
         let isApiWorking = false;
@@ -496,7 +496,7 @@
                 const response = await fetch(url, {
                     headers: {
                         'Accept': 'application/json',
-                        'x-cg-demo-api-key': API_KEY
+                        'x-cg-pro-api-key': API_KEY
                     }
                 });
                 
@@ -518,7 +518,7 @@
                 const response = await fetch(url, {
                     headers: {
                         'Accept': 'application/json',
-                        'x-cg-demo-api-key': API_KEY
+                        'x-cg-pro-api-key': API_KEY
                     }
                 });
                 
@@ -683,14 +683,14 @@
         // API 호출 (실제 실시간 가격)
         async function fetchCryptoData() {
             try {
-                // CoinGecko API v3 - API 키를 헤더에 추가
+                // CoinGecko API v3 - Pro API 키를 헤더에 추가
                 const url = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,ripple,solana,binancecoin,cardano&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true';
                 
                 const response = await fetch(url, {
                     method: 'GET',
                     headers: {
                         'Accept': 'application/json',
-                        'x-cg-demo-api-key': API_KEY  // API 키를 헤더에 추가
+                        'x-cg-pro-api-key': API_KEY  // Pro API 키를 헤더에 추가
                     }
                 });
                 
@@ -770,7 +770,7 @@
                     ].filter(coin => coin.price > 0); // 가격이 0인 코인 제외
                     
                     isApiWorking = true;
-                    document.getElementById('apiStatus').textContent = 'API ✅ 실시간';
+                    document.getElementById('apiStatus').textContent = 'API ✅ PRO';
                     document.getElementById('apiStatus').className = 'api-status';
                     
                     console.log('처리된 실시간 데이터:', cryptoData);
