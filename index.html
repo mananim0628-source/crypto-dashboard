@@ -386,6 +386,7 @@
             border-radius: 10px;
             font-size: 12px;
             color: #666;
+            display: block;
         }
         
         @media (max-width: 768px) {
@@ -434,8 +435,13 @@
     </div>
 
     <div class="container">
-        <!-- 디버그 정보 (실제 API 응답 확인용) -->
-        <div id="debugInfo" class="debug-info" style="display: none;"></div>
+        <!-- 디버그 정보 -->
+        <div id="debugInfo" class="debug-info">
+            <strong>디버그 정보:</strong><br>
+            API 상태: <span id="debugApiStatus">확인중...</span><br>
+            마지막 요청: <span id="debugLastRequest">-</span><br>
+            응답 데이터: <span id="debugResponse">-</span>
+        </div>
         
         <div id="priceCards" class="price-cards"></div>
 
@@ -488,6 +494,13 @@
             { id: 'technical', name: '📉 기술적 분석', max: 20, score: 0 },
             { id: 'strategy', name: '🎯 전략', max: 10, score: 0 }
         ];
+
+        // 디버그 정보 업데이트
+        function updateDebugInfo(status, request, response) {
+            document.getElementById('debugApiStatus').textContent = status;
+            document.getElementById('debugLastRequest').textContent = request;
+            document.getElementById('debugResponse').textContent = response;
+        }
 
         // 코인 검색 API
         async function searchCoin(query) {
@@ -682,36 +695,37 @@
         
         // API 호출 (실제 실시간 가격)
         async function fetchCryptoData() {
+            const timestamp = new Date().toLocaleTimeString();
+            updateDebugInfo('요청 중...', timestamp, '-');
+            
             try {
-                // CoinGecko API v3 - Pro API 키를 헤더에 추가
+                // 완전한 API URL
                 const url = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,ripple,solana,binancecoin,cardano&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true';
+                
+                console.log('API 요청 URL:', url);
                 
                 const response = await fetch(url, {
                     method: 'GET',
                     headers: {
                         'Accept': 'application/json',
-                        'x-cg-pro-api-key': API_KEY  // Pro API 키를 헤더에 추가
+                        'x-cg-pro-api-key': API_KEY
                     }
                 });
+                
+                console.log('응답 상태:', response.status);
+                updateDebugInfo(`응답 받음 (${response.status})`, timestamp, '-');
                 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
                 const data = await response.json();
-                
                 console.log('실제 API 응답:', data);
                 
-                // 디버그 정보 표시
-                document.getElementById('debugInfo').innerHTML = `
-                    <strong>API 응답 (실시간):</strong><br>
-                    BTC: $${data.bitcoin?.usd || 'N/A'}<br>
-                    ETH: $${data.ethereum?.usd || 'N/A'}<br>
-                    XRP: $${data.ripple?.usd || 'N/A'}
-                `;
+                updateDebugInfo('성공', timestamp, JSON.stringify(data).substring(0, 100) + '...');
                 
                 // 실제 API 데이터를 사용
-                if (data.bitcoin || data.ethereum || data.ripple) {
+                if (data && Object.keys(data).length > 0) {
                     cryptoData = [
                         {
                             symbol: 'BTC',
@@ -781,6 +795,7 @@
                 
             } catch (error) {
                 console.error('API 에러:', error);
+                updateDebugInfo(`에러: ${error.message}`, timestamp, '-');
                 document.getElementById('apiStatus').textContent = 'API ❌ 더미';
                 document.getElementById('apiStatus').className = 'api-status api-error';
                 
@@ -792,6 +807,7 @@
         // 더미 데이터 (API 실패시 백업)
         function getDummyData() {
             console.log('더미 데이터 사용 중...');
+            updateDebugInfo('더미 데이터 사용', new Date().toLocaleTimeString(), '더미 데이터 로드됨');
             return [
                 { symbol: 'BTC', name: 'Bitcoin', icon: '🔥', price: 99850, change: 1.2, volume: 28000000000, marketCap: 1950000000000 },
                 { symbol: 'ETH', name: 'Ethereum', icon: '⭐', price: 3580, change: -0.5, volume: 18000000000, marketCap: 430000000000 },
@@ -928,7 +944,6 @@
         
         // 가격 카드 렌더링
         function renderPriceCards() {
-            const totalScore = calculateChecklistScores();
             const container = document.getElementById('priceCards');
             
             if (!cryptoData || cryptoData.length === 0) {
@@ -1089,8 +1104,8 @@
             await updateDashboard();
             startCountdown();
             
-            // 60초마다 자동 업데이트
-            setInterval(updateDashboard, 60000);
+            // 2분마다 자동 업데이트 (API 제한 고려)
+            setInterval(updateDashboard, 120000);
         }
         
         // 페이지 로드시 실행
