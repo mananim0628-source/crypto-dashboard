@@ -50,7 +50,6 @@
             color: #ff4757;
         }
 
-        /* 검색 기능 스타일 */
         .search-container {
             max-width: 800px;
             margin: 20px auto;
@@ -116,16 +115,101 @@
             border-bottom: none;
         }
 
-        .search-results {
-            margin: 30px auto;
+        .favorites-section {
+            margin: 20px auto;
             max-width: 1600px;
             padding: 0 20px;
         }
 
-        .search-results h2 {
+        .favorites-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .favorites-title {
+            font-size: 18px;
             color: #48cae4;
+        }
+
+        .clear-favorites {
+            background: rgba(255, 71, 87, 0.2);
+            color: #ff4757;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .favorites-list {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
             margin-bottom: 20px;
-            text-align: center;
+        }
+
+        .favorite-item {
+            background: rgba(72, 202, 228, 0.2);
+            color: #48cae4;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.3s;
+        }
+
+        .favorite-item:hover {
+            background: rgba(72, 202, 228, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .remove-favorite {
+            background: none;
+            border: none;
+            color: #ff4757;
+            cursor: pointer;
+            font-size: 16px;
+            margin-left: 5px;
+        }
+
+        .star-btn {
+            background: none;
+            border: none;
+            color: #feca57;
+            cursor: pointer;
+            font-size: 18px;
+            margin-left: 10px;
+            transition: all 0.3s;
+        }
+
+        .star-btn:hover {
+            transform: scale(1.2);
+        }
+
+        .star-btn.active {
+            color: #00ff88;
+        }
+
+        .section-header {
+            margin: 30px auto 20px;
+            max-width: 1600px;
+            padding: 0 20px;
+        }
+
+        .section-title {
+            font-size: 20px;
+            color: #00ff88;
+            margin-bottom: 10px;
+        }
+
+        .section-subtitle {
+            font-size: 14px;
+            color: #a0a0a0;
         }
         
         .container { 
@@ -148,6 +232,7 @@
             border-radius: 15px; 
             padding: 25px; 
             transition: all 0.3s;
+            position: relative;
         }
         
         .price-card.bullish { 
@@ -175,6 +260,8 @@
         .coin-name { 
             font-size: 20px; 
             font-weight: bold; 
+            display: flex;
+            align-items: center;
         }
         
         .coin-score {
@@ -407,6 +494,10 @@
             .search-box {
                 flex-direction: column;
             }
+            
+            .favorites-list {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
@@ -419,7 +510,6 @@
         </div>
     </div>
 
-    <!-- 검색 섹션 -->
     <div class="search-container">
         <div class="search-box">
             <input type="text" id="coinSearch" placeholder="코인명 입력 (예: doge, shib, matic, uni, link)">
@@ -428,14 +518,20 @@
         <div id="searchSuggestions" class="suggestions-list"></div>
     </div>
 
-    <!-- 검색 결과 표시 섹션 -->
-    <div id="searchResults" class="search-results" style="display: none;">
-        <h2>🔍 검색 분석 결과</h2>
-        <div id="searchedCoinCard" class="price-cards"></div>
+    <div class="favorites-section">
+        <div class="favorites-header">
+            <div class="favorites-title">⭐ 즐겨찾기</div>
+            <button class="clear-favorites" onclick="clearAllFavorites()">전체 삭제</button>
+        </div>
+        <div id="favoritesList" class="favorites-list"></div>
+    </div>
+
+    <div class="section-header">
+        <div class="section-title">🎯 핵심 코인 (BTC, ETH, XRP, BNB)</div>
+        <div class="section-subtitle">고정 표시되는 주요 코인들</div>
     </div>
 
     <div class="container">
-        <!-- 디버그 정보 -->
         <div id="debugInfo" class="debug-info">
             <strong>디버그 정보:</strong><br>
             API 상태: <span id="debugApiStatus">확인중...</span><br>
@@ -443,7 +539,14 @@
             응답 데이터: <span id="debugResponse">-</span>
         </div>
         
-        <div id="priceCards" class="price-cards"></div>
+        <div id="coreCoinsCards" class="price-cards"></div>
+
+        <div class="section-header">
+            <div class="section-title">📈 실시간 상승 코인 TOP 6</div>
+            <div class="section-subtitle">24시간 상승률 기준 자동 업데이트</div>
+        </div>
+        
+        <div id="gainersCards" class="price-cards"></div>
 
         <div class="checklist-container">
             <div class="checklist-header">
@@ -478,13 +581,16 @@
     </div>
 
     <script>
-        // API 키 설정 (CoinGecko PRO)
         const API_KEY = 'CG-AJku92n1VmZV1ZQ2mp46DA2C';
         let countdown = 60;
-        let cryptoData = [];
+        let coreCoinsData = [];
+        let gainersData = [];
         let isApiWorking = false;
         
-        // 체크리스트 정의
+        let favorites = JSON.parse(localStorage.getItem('cryptoFavorites') || '[]');
+        
+        const CORE_COINS = ['bitcoin', 'ethereum', 'ripple', 'binancecoin'];
+        
         const checklistItems = [
             { id: 'macro', name: '🌍 거시환경', max: 20, score: 0 },
             { id: 'etf', name: '📊 ETF·제도권 자금', max: 25, score: 0 },
@@ -495,14 +601,208 @@
             { id: 'strategy', name: '🎯 전략', max: 10, score: 0 }
         ];
 
-        // 디버그 정보 업데이트
-        function updateDebugInfo(status, request, response) {
-            document.getElementById('debugApiStatus').textContent = status;
-            document.getElementById('debugLastRequest').textContent = request;
-            document.getElementById('debugResponse').textContent = response;
+        function addToFavorites(coinId, symbol) {
+            if (!favorites.find(fav => fav.coinId === coinId)) {
+                favorites.push({ coinId, symbol });
+                localStorage.setItem('cryptoFavorites', JSON.stringify(favorites));
+                renderFavorites();
+            }
         }
 
-        // 코인 검색 API
+        function removeFromFavorites(coinId) {
+            favorites = favorites.filter(fav => fav.coinId !== coinId);
+            localStorage.setItem('cryptoFavorites', JSON.stringify(favorites));
+            renderFavorites();
+        }
+
+        function clearAllFavorites() {
+            favorites = [];
+            localStorage.setItem('cryptoFavorites', JSON.stringify(favorites));
+            renderFavorites();
+        }
+
+        function isFavorite(coinId) {
+            return favorites.some(fav => fav.coinId === coinId);
+        }
+
+        function renderFavorites() {
+            const container = document.getElementById('favoritesList');
+            
+            if (favorites.length === 0) {
+                container.innerHTML = '<div style="color: #666; font-style: italic;">즐겨찾기한 코인이 없습니다</div>';
+                return;
+            }
+            
+            let html = '';
+            favorites.forEach(favorite => {
+                html += `
+                    <div class="favorite-item" onclick="analyzeCoinById('${favorite.coinId}')">
+                        ${favorite.symbol}
+                        <button class="remove-favorite" onclick="event.stopPropagation(); removeFromFavorites('${favorite.coinId}')">&times;</button>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function updateDebugInfo(status, request, response) {
+            const debugApiStatus = document.getElementById('debugApiStatus');
+            const debugLastRequest = document.getElementById('debugLastRequest');
+            const debugResponse = document.getElementById('debugResponse');
+            
+            if (debugApiStatus) debugApiStatus.textContent = status;
+            if (debugLastRequest) debugLastRequest.textContent = request;
+            if (debugResponse) debugResponse.textContent = response;
+        }
+
+        async function fetchCoreCoins() {
+            try {
+                const url = `https://api.coingecko.com/api/v3/simple/price?ids=${CORE_COINS.join(',')}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true`;
+                
+                const response = await fetch(url, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'x-cg-pro-api-key': API_KEY
+                    }
+                });
+                
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const data = await response.json();
+                
+                coreCoinsData = [
+                    {
+                        id: 'bitcoin',
+                        symbol: 'BTC',
+                        name: 'Bitcoin',
+                        icon: '🔥',
+                        price: data.bitcoin?.usd || 0,
+                        change: data.bitcoin?.usd_24h_change || 0,
+                        volume: data.bitcoin?.usd_24h_vol || 0,
+                        marketCap: data.bitcoin?.usd_market_cap || 0
+                    },
+                    {
+                        id: 'ethereum',
+                        symbol: 'ETH',
+                        name: 'Ethereum',
+                        icon: '⭐',
+                        price: data.ethereum?.usd || 0,
+                        change: data.ethereum?.usd_24h_change || 0,
+                        volume: data.ethereum?.usd_24h_vol || 0,
+                        marketCap: data.ethereum?.usd_market_cap || 0
+                    },
+                    {
+                        id: 'ripple',
+                        symbol: 'XRP',
+                        name: 'Ripple',
+                        icon: '💎',
+                        price: data.ripple?.usd || 0,
+                        change: data.ripple?.usd_24h_change || 0,
+                        volume: data.ripple?.usd_24h_vol || 0,
+                        marketCap: data.ripple?.usd_market_cap || 0
+                    },
+                    {
+                        id: 'binancecoin',
+                        symbol: 'BNB',
+                        name: 'Binance',
+                        icon: '🪙',
+                        price: data.binancecoin?.usd || 0,
+                        change: data.binancecoin?.usd_24h_change || 0,
+                        volume: data.binancecoin?.usd_24h_vol || 0,
+                        marketCap: data.binancecoin?.usd_market_cap || 0
+                    }
+                ].filter(coin => coin.price > 0);
+                
+                return coreCoinsData;
+            } catch (error) {
+                console.error('핵심 코인 데이터 에러:', error);
+                return [];
+            }
+        }
+
+        async function fetchGainersCoins() {
+            try {
+                const url = 'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=percent_change_24h&per_page=20&page=1&sparkline=false&price_change_percentage=24h';
+                
+                const response = await fetch(url, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'x-cg-pro-api-key': API_KEY
+                    }
+                });
+                
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const data = await response.json();
+                
+                gainersData = data
+                    .filter(coin => 
+                        !CORE_COINS.includes(coin.id) && 
+                        coin.price_change_percentage_24h > 0 &&
+                        coin.market_cap_rank <= 100
+                    )
+                    .slice(0, 6)
+                    .map(coin => ({
+                        id: coin.id,
+                        symbol: coin.symbol.toUpperCase(),
+                        name: coin.name,
+                        icon: '📈',
+                        price: coin.current_price,
+                        change: coin.price_change_percentage_24h,
+                        volume: coin.total_volume,
+                        marketCap: coin.market_cap
+                    }));
+                
+                return gainersData;
+            } catch (error) {
+                console.error('상승 코인 데이터 에러:', error);
+                return [];
+            }
+        }
+
+        async function fetchAllCryptoData() {
+            const timestamp = new Date().toLocaleTimeString();
+            updateDebugInfo('요청 중...', timestamp, '-');
+            
+            try {
+                await Promise.all([
+                    fetchCoreCoins(),
+                    fetchGainersCoins()
+                ]);
+                
+                isApiWorking = true;
+                document.getElementById('apiStatus').textContent = 'API ✅ PRO';
+                document.getElementById('apiStatus').className = 'api-status';
+                
+                updateDebugInfo('성공', timestamp, `핵심: ${coreCoinsData.length}개, 상승: ${gainersData.length}개`);
+                console.log('핵심 코인:', coreCoinsData);
+                console.log('상승 코인:', gainersData);
+                
+            } catch (error) {
+                console.error('API 에러:', error);
+                updateDebugInfo(`에러: ${error.message}`, timestamp, '-');
+                document.getElementById('apiStatus').textContent = 'API ❌ 더미';
+                document.getElementById('apiStatus').className = 'api-status api-error';
+                
+                coreCoinsData = [
+                    { id: 'bitcoin', symbol: 'BTC', name: 'Bitcoin', icon: '🔥', price: 117764, change: 1.15, volume: 28000000000, marketCap: 1950000000000 },
+                    { id: 'ethereum', symbol: 'ETH', name: 'Ethereum', icon: '⭐', price: 4619, change: 2.63, volume: 18000000000, marketCap: 430000000000 },
+                    { id: 'ripple', symbol: 'XRP', name: 'Ripple', icon: '💎', price: 2.45, change: 2.8, volume: 3500000000, marketCap: 135000000000 },
+                    { id: 'binancecoin', symbol: 'BNB', name: 'Binance', icon: '🪙', price: 520, change: 0.8, volume: 1800000000, marketCap: 78000000000 }
+                ];
+                
+                gainersData = [
+                    { id: 'solana', symbol: 'SOL', name: 'Solana', icon: '📈', price: 185, change: 8.5, volume: 3200000000, marketCap: 85000000000 },
+                    { id: 'cardano', symbol: 'ADA', name: 'Cardano', icon: '📈', price: 0.95, change: 7.2, volume: 1200000000, marketCap: 33000000000 },
+                    { id: 'polygon', symbol: 'MATIC', name: 'Polygon', icon: '📈', price: 1.2, change: 6.8, volume: 800000000, marketCap: 12000000000 },
+                    { id: 'chainlink', symbol: 'LINK', name: 'Chainlink', icon: '📈', price: 25, change: 5.4, volume: 600000000, marketCap: 15000000000 },
+                    { id: 'uniswap', symbol: 'UNI', name: 'Uniswap', icon: '📈', price: 12, change: 4.9, volume: 400000000, marketCap: 8000000000 },
+                    { id: 'avalanche-2', symbol: 'AVAX', name: 'Avalanche', icon: '📈', price: 45, change: 4.2, volume: 700000000, marketCap: 18000000000 }
+                ];
+            }
+        }
+
         async function searchCoin(query) {
             try {
                 const url = `https://api.coingecko.com/api/v3/search?query=${query}`;
@@ -516,14 +816,13 @@
                 if (!response.ok) throw new Error('검색 실패');
                 
                 const data = await response.json();
-                return data.coins.slice(0, 5); // 상위 5개만
+                return data.coins.slice(0, 5);
             } catch (error) {
                 console.error('검색 에러:', error);
                 return [];
             }
         }
 
-        // 특정 코인 데이터 가져오기
         async function fetchSpecificCoin(coinId) {
             try {
                 const url = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true`;
@@ -558,7 +857,6 @@
             }
         }
 
-        // 자동완성 기능
         let searchTimeout;
         document.getElementById('coinSearch').addEventListener('input', function(e) {
             const query = e.target.value.trim();
@@ -576,7 +874,6 @@
             }, 300);
         });
 
-        // 검색 제안 표시
         function displaySuggestions(suggestions) {
             const container = document.getElementById('searchSuggestions');
             
@@ -598,271 +895,84 @@
             container.innerHTML = html;
         }
 
-        // 코인 선택
         async function selectCoin(coinId, coinName) {
             document.getElementById('coinSearch').value = coinName;
             document.getElementById('searchSuggestions').innerHTML = '';
             
-            // 분석 실행
             await analyzeCoin(coinId);
         }
 
-        // 검색 버튼 클릭
+        async function analyzeCoinById(coinId) {
+            await analyzeCoin(coinId);
+        }
+
         document.getElementById('searchBtn').addEventListener('click', async function() {
             const query = document.getElementById('coinSearch').value.trim();
             if (!query) return;
             
-            // 직접 입력한 경우 첫 번째 검색 결과 사용
             const suggestions = await searchCoin(query);
             if (suggestions.length > 0) {
                 await analyzeCoin(suggestions[0].id);
             }
         });
 
-        // 코인 분석 실행
         async function analyzeCoin(coinId) {
-            const resultsContainer = document.getElementById('searchResults');
-            const cardContainer = document.getElementById('searchedCoinCard');
-            
-            // 로딩 표시
-            resultsContainer.style.display = 'block';
-            cardContainer.innerHTML = '<div style="text-align: center; padding: 40px;">분석 중...</div>';
-            
             try {
-                // 코인 데이터 가져오기
                 const coinData = await fetchSpecificCoin(coinId);
                 
                 if (!coinData) {
-                    cardContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #ff4757;">데이터를 가져올 수 없습니다.</div>';
+                    alert('데이터를 가져올 수 없습니다.');
                     return;
                 }
                 
-                // 동일한 체크리스트 로직 적용
-                const coinScore = calculateCoinScore(coinData);
-                const strategy = getStrategyDirection(coinScore, coinData.change);
-                const prices = calculateTradingPrices(coinData, strategy);
+                coinData.analyzed = true;
+                gainersData.unshift(coinData);
+                if (gainersData.length > 7) gainersData.pop();
                 
-                let cardClass = 'neutral';
-                if (strategy.direction === 'LONG') cardClass = 'bullish';
-                else if (strategy.direction === 'SHORT') cardClass = 'bearish';
-                
-                // 검색 결과 카드 표시
-                cardContainer.innerHTML = `
-                    <div class="price-card ${cardClass}">
-                        <div class="coin-header">
-                            <div class="coin-name">${coinData.icon} ${coinData.symbol}</div>
-                            <div class="coin-score">${coinScore}/140</div>
-                        </div>
-                        <div class="coin-price">
-                            $${formatPrice(coinData.price)}
-                        </div>
-                        <div class="price-change">
-                            ${coinData.change >= 0 ? '+' : ''}${coinData.change.toFixed(2)}%
-                        </div>
-                        
-                        <div class="strategy-direction ${strategy.class}">
-                            ${strategy.signal}
-                        </div>
-                        
-                        <div class="trading-info">
-                            <div class="trading-grid">
-                                <div class="trading-item">
-                                    <span class="trading-label">${strategy.direction === 'SHORT' ? '숏 진입가:' : '롱 진입가:'}</span>
-                                    <span class="trading-value entry-price">$${formatPrice(prices.entry)}</span>
-                                </div>
-                                <div class="trading-item">
-                                    <span class="trading-label">목표가:</span>
-                                    <span class="trading-value target-price">$${formatPrice(prices.target)}</span>
-                                </div>
-                                <div class="trading-item">
-                                    <span class="trading-label">손절가:</span>
-                                    <span class="trading-value stop-loss">$${formatPrice(prices.stop)}</span>
-                                </div>
-                                <div class="trading-item">
-                                    <span class="trading-label">손익비:</span>
-                                    <span class="trading-value risk-reward">1:${prices.rr}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
+                renderGainersCards();
                 
             } catch (error) {
                 console.error('분석 에러:', error);
-                cardContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #ff4757;">분석 중 오류가 발생했습니다.</div>';
+                alert('분석 중 오류가 발생했습니다.');
             }
         }
         
-        // API 호출 (실제 실시간 가격)
-        async function fetchCryptoData() {
-            const timestamp = new Date().toLocaleTimeString();
-            updateDebugInfo('요청 중...', timestamp, '-');
-            
-            try {
-                // 완전한 API URL
-                const url = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,ripple,solana,binancecoin,cardano&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true';
-                
-                console.log('API 요청 URL:', url);
-                
-                const response = await fetch(url, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json',
-                        'x-cg-pro-api-key': API_KEY
-                    }
-                });
-                
-                console.log('응답 상태:', response.status);
-                updateDebugInfo(`응답 받음 (${response.status})`, timestamp, '-');
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                console.log('실제 API 응답:', data);
-                
-                updateDebugInfo('성공', timestamp, JSON.stringify(data).substring(0, 100) + '...');
-                
-                // 실제 API 데이터를 사용
-                if (data && Object.keys(data).length > 0) {
-                    cryptoData = [
-                        {
-                            symbol: 'BTC',
-                            name: 'Bitcoin',
-                            icon: '🔥',
-                            price: data.bitcoin?.usd || 0,
-                            change: data.bitcoin?.usd_24h_change || 0,
-                            volume: data.bitcoin?.usd_24h_vol || 0,
-                            marketCap: data.bitcoin?.usd_market_cap || 0
-                        },
-                        {
-                            symbol: 'ETH',
-                            name: 'Ethereum',
-                            icon: '⭐',
-                            price: data.ethereum?.usd || 0,
-                            change: data.ethereum?.usd_24h_change || 0,
-                            volume: data.ethereum?.usd_24h_vol || 0,
-                            marketCap: data.ethereum?.usd_market_cap || 0
-                        },
-                        {
-                            symbol: 'XRP',
-                            name: 'Ripple',
-                            icon: '💎',
-                            price: data.ripple?.usd || 0,
-                            change: data.ripple?.usd_24h_change || 0,
-                            volume: data.ripple?.usd_24h_vol || 0,
-                            marketCap: data.ripple?.usd_market_cap || 0
-                        },
-                        {
-                            symbol: 'SOL',
-                            name: 'Solana',
-                            icon: '☀️',
-                            price: data.solana?.usd || 0,
-                            change: data.solana?.usd_24h_change || 0,
-                            volume: data.solana?.usd_24h_vol || 0,
-                            marketCap: data.solana?.usd_market_cap || 0
-                        },
-                        {
-                            symbol: 'BNB',
-                            name: 'Binance',
-                            icon: '🪙',
-                            price: data.binancecoin?.usd || 0,
-                            change: data.binancecoin?.usd_24h_change || 0,
-                            volume: data.binancecoin?.usd_24h_vol || 0,
-                            marketCap: data.binancecoin?.usd_market_cap || 0
-                        },
-                        {
-                            symbol: 'ADA',
-                            name: 'Cardano',
-                            icon: '🌟',
-                            price: data.cardano?.usd || 0,
-                            change: data.cardano?.usd_24h_change || 0,
-                            volume: data.cardano?.usd_24h_vol || 0,
-                            marketCap: data.cardano?.usd_market_cap || 0
-                        }
-                    ].filter(coin => coin.price > 0); // 가격이 0인 코인 제외
-                    
-                    isApiWorking = true;
-                    document.getElementById('apiStatus').textContent = 'API ✅ PRO';
-                    document.getElementById('apiStatus').className = 'api-status';
-                    
-                    console.log('처리된 실시간 데이터:', cryptoData);
-                    return cryptoData;
-                } else {
-                    throw new Error('API 데이터가 비어있음');
-                }
-                
-            } catch (error) {
-                console.error('API 에러:', error);
-                updateDebugInfo(`에러: ${error.message}`, timestamp, '-');
-                document.getElementById('apiStatus').textContent = 'API ❌ 더미';
-                document.getElementById('apiStatus').className = 'api-status api-error';
-                
-                // API 실패시 더미 데이터 사용
-                return getDummyData();
-            }
-        }
-        
-        // 더미 데이터 (API 실패시 백업)
-        function getDummyData() {
-            console.log('더미 데이터 사용 중...');
-            updateDebugInfo('더미 데이터 사용', new Date().toLocaleTimeString(), '더미 데이터 로드됨');
-            return [
-                { symbol: 'BTC', name: 'Bitcoin', icon: '🔥', price: 99850, change: 1.2, volume: 28000000000, marketCap: 1950000000000 },
-                { symbol: 'ETH', name: 'Ethereum', icon: '⭐', price: 3580, change: -0.5, volume: 18000000000, marketCap: 430000000000 },
-                { symbol: 'XRP', name: 'Ripple', icon: '💎', price: 2.45, change: 2.8, volume: 3500000000, marketCap: 135000000000 },
-                { symbol: 'SOL', name: 'Solana', icon: '☀️', price: 185, change: 3.5, volume: 3200000000, marketCap: 85000000000 },
-                { symbol: 'BNB', name: 'Binance', icon: '🪙', price: 520, change: 0.8, volume: 1800000000, marketCap: 78000000000 },
-                { symbol: 'ADA', name: 'Cardano', icon: '🌟', price: 0.95, change: 1.5, volume: 1200000000, marketCap: 33000000000 }
-            ];
-        }
-        
-        // 개별 코인 점수 계산 (6단계 체크리스트 기반)
         function calculateCoinScore(coin) {
             let score = 0;
             
-            // 거시환경 (가격 대비)
             if (coin.symbol === 'BTC' && coin.price > 95000) score += 20;
             else if (coin.symbol === 'ETH' && coin.price > 3500) score += 18;
             else if (coin.price > 0) score += 15;
             
-            // 24시간 변화율
             if (coin.change > 5) score += 25;
             else if (coin.change > 2) score += 20;
             else if (coin.change > 0) score += 15;
             else if (coin.change > -2) score += 10;
             else score += 5;
             
-            // 거래량 (시장 활성도)
             if (coin.volume > 20000000000) score += 25;
             else if (coin.volume > 10000000000) score += 20;
             else if (coin.volume > 5000000000) score += 15;
             else score += 10;
             
-            // 시가총액 (안정성)
             if (coin.marketCap > 1000000000000) score += 20;
             else if (coin.marketCap > 100000000000) score += 15;
             else if (coin.marketCap > 50000000000) score += 12;
             else score += 8;
             
-            // 기술적 분석 (변화율 기반)
-            if (Math.abs(coin.change) < 1) score += 20; // 안정적
+            if (Math.abs(coin.change) < 1) score += 20;
             else if (Math.abs(coin.change) < 3) score += 15;
             else score += 10;
             
-            // 전략 점수
             if (coin.change > 0 && coin.volume > 5000000000) score += 10;
             else if (coin.change > -1) score += 7;
             else score += 3;
             
-            // 추가 점수 (AI/미래 기술)
-            if (coin.symbol === 'SOL' || coin.symbol === 'ETH') score += 5; // AI/DeFi 관련
+            if (coin.symbol === 'SOL' || coin.symbol === 'ETH') score += 5;
             
             return Math.min(140, Math.max(0, score));
         }
         
-        // 전략 방향 결정 (롱/숏/홀드)
         function getStrategyDirection(coinScore, change) {
             if (coinScore >= 100 && change > 0) {
                 return { direction: 'LONG', class: 'long-strategy', signal: '📈 강력 매수' };
@@ -877,15 +987,14 @@
             }
         }
         
-        // 체크리스트 점수 계산
         function calculateChecklistScores() {
-            if (!cryptoData || cryptoData.length === 0) return 0;
+            const allCoins = [...coreCoinsData, ...gainersData];
+            if (!allCoins || allCoins.length === 0) return 0;
             
-            const avgChange = cryptoData.reduce((sum, coin) => sum + (coin.change || 0), 0) / cryptoData.length;
-            const totalVolume = cryptoData.reduce((sum, coin) => sum + (coin.volume || 0), 0);
-            const btc = cryptoData.find(coin => coin.symbol === 'BTC');
+            const avgChange = allCoins.reduce((sum, coin) => sum + (coin.change || 0), 0) / allCoins.length;
+            const totalVolume = allCoins.reduce((sum, coin) => sum + (coin.volume || 0), 0);
+            const btc = allCoins.find(coin => coin.symbol === 'BTC');
             
-            // 실제 시장 데이터 기반 점수 계산
             checklistItems[0].score = Math.min(20, Math.max(0, Math.floor(10 + avgChange * 2)));
             checklistItems[1].score = Math.min(25, Math.max(0, btc ? Math.floor(12 + (btc.price > 95000 ? 10 : 5)) : 12));
             checklistItems[2].score = Math.min(25, Math.max(0, Math.floor(totalVolume / 5000000000)));
@@ -897,7 +1006,6 @@
             return checklistItems.reduce((sum, item) => sum + item.score, 0);
         }
         
-        // 트레이딩 가격 계산 (롱/숏 구분)
         function calculateTradingPrices(coin, strategy) {
             const currentPrice = parseFloat(coin.price) || 0;
             if (currentPrice === 0) return { entry: 0, target: 0, stop: 0, rr: '0' };
@@ -905,20 +1013,17 @@
             let entryPrice, targetPrice, stopLoss, riskReward;
             
             if (strategy.direction === 'LONG') {
-                // 롱 포지션
-                entryPrice = currentPrice * 1.002;  // 0.2% 위에서 진입
-                targetPrice = currentPrice * 1.08;  // 8% 수익 목표
-                stopLoss = currentPrice * 0.95;     // 5% 손절
+                entryPrice = currentPrice * 1.002;
+                targetPrice = currentPrice * 1.08;
+                stopLoss = currentPrice * 0.95;
             } else if (strategy.direction === 'SHORT') {
-                // 숏 포지션
-                entryPrice = currentPrice * 0.998;  // 0.2% 아래에서 진입
-                targetPrice = currentPrice * 0.92;  // 8% 하락 목표
-                stopLoss = currentPrice * 1.05;     // 5% 손절
+                entryPrice = currentPrice * 0.998;
+                targetPrice = currentPrice * 0.92;
+                stopLoss = currentPrice * 1.05;
             } else {
-                // 홀드/관망
                 entryPrice = currentPrice;
-                targetPrice = currentPrice * 1.03;  // 3% 목표
-                stopLoss = currentPrice * 0.97;     // 3% 손절
+                targetPrice = currentPrice * 1.03;
+                stopLoss = currentPrice * 0.97;
             }
             
             const risk = Math.abs(entryPrice - stopLoss);
@@ -933,79 +1038,115 @@
             };
         }
         
-        // 가격 포맷팅
         function formatPrice(price) {
             if (!price || price === 0) return '0';
-            if (price > 10000) return price.toFixed(0);
+            if (price > 10000) return price.toLocaleString();
             if (price > 100) return price.toFixed(2);
             if (price > 1) return price.toFixed(3);
             return price.toFixed(4);
         }
         
-        // 가격 카드 렌더링
-        function renderPriceCards() {
-            const container = document.getElementById('priceCards');
+        function createCoinCard(coin) {
+            const coinScore = calculateCoinScore(coin);
+            const strategy = getStrategyDirection(coinScore, coin.change);
+            const prices = calculateTradingPrices(coin, strategy);
             
-            if (!cryptoData || cryptoData.length === 0) {
-                container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px;">데이터를 로딩중입니다...</div>';
+            let cardClass = 'neutral';
+            if (strategy.direction === 'LONG') cardClass = 'bullish';
+            else if (strategy.direction === 'SHORT') cardClass = 'bearish';
+            
+            const isInFavorites = isFavorite(coin.id);
+            
+            return `
+                <div class="price-card ${cardClass}">
+                    <div class="coin-header">
+                        <div class="coin-name">
+                            ${coin.icon} ${coin.symbol}
+                            <button class="star-btn ${isInFavorites ? 'active' : ''}" 
+                                    onclick="toggleFavorite('${coin.id}', '${coin.symbol}')">
+                                ${isInFavorites ? '★' : '☆'}
+                            </button>
+                        </div>
+                        <div class="coin-score">${coinScore}/140</div>
+                    </div>
+                    <div class="coin-price">
+                        $${formatPrice(coin.price)}
+                    </div>
+                    <div class="price-change">
+                        ${coin.change >= 0 ? '+' : ''}${coin.change.toFixed(2)}%
+                    </div>
+                    
+                    <div class="strategy-direction ${strategy.class}">
+                        ${strategy.signal}
+                    </div>
+                    
+                    <div class="trading-info">
+                        <div class="trading-grid">
+                            <div class="trading-item">
+                                <span class="trading-label">${strategy.direction === 'SHORT' ? '숏 진입가:' : '롱 진입가:'}</span>
+                                <span class="trading-value entry-price">$${formatPrice(prices.entry)}</span>
+                            </div>
+                            <div class="trading-item">
+                                <span class="trading-label">목표가:</span>
+                                <span class="trading-value target-price">$${formatPrice(prices.target)}</span>
+                            </div>
+                            <div class="trading-item">
+                                <span class="trading-label">손절가:</span>
+                                <span class="trading-value stop-loss">$${formatPrice(prices.stop)}</span>
+                            </div>
+                            <div class="trading-item">
+                                <span class="trading-label">손익비:</span>
+                                <span class="trading-value risk-reward">1:${prices.rr}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function toggleFavorite(coinId, symbol) {
+            if (isFavorite(coinId)) {
+                removeFromFavorites(coinId);
+            } else {
+                addToFavorites(coinId, symbol);
+            }
+            
+            renderCoreCoinsCards();
+            renderGainersCards();
+        }
+        
+        function renderCoreCoinsCards() {
+            const container = document.getElementById('coreCoinsCards');
+            
+            if (!coreCoinsData || coreCoinsData.length === 0) {
+                container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px;">핵심 코인 데이터를 로딩중입니다...</div>';
                 return;
             }
             
             let html = '';
-            cryptoData.forEach(coin => {
-                const coinScore = calculateCoinScore(coin);
-                const strategy = getStrategyDirection(coinScore, coin.change);
-                const prices = calculateTradingPrices(coin, strategy);
-                
-                let cardClass = 'neutral';
-                if (strategy.direction === 'LONG') cardClass = 'bullish';
-                else if (strategy.direction === 'SHORT') cardClass = 'bearish';
-                
-                html += `
-                    <div class="price-card ${cardClass}">
-                        <div class="coin-header">
-                            <div class="coin-name">${coin.icon} ${coin.symbol}</div>
-                            <div class="coin-score">${coinScore}/140</div>
-                        </div>
-                        <div class="coin-price">
-                            $${formatPrice(coin.price)}
-                        </div>
-                        <div class="price-change">
-                            ${coin.change >= 0 ? '+' : ''}${coin.change.toFixed(2)}%
-                        </div>
-                        
-                        <div class="strategy-direction ${strategy.class}">
-                            ${strategy.signal}
-                        </div>
-                        
-                        <div class="trading-info">
-                            <div class="trading-grid">
-                                <div class="trading-item">
-                                    <span class="trading-label">${strategy.direction === 'SHORT' ? '숏 진입가:' : '롱 진입가:'}</span>
-                                    <span class="trading-value entry-price">$${formatPrice(prices.entry)}</span>
-                                </div>
-                                <div class="trading-item">
-                                    <span class="trading-label">목표가:</span>
-                                    <span class="trading-value target-price">$${formatPrice(prices.target)}</span>
-                                </div>
-                                <div class="trading-item">
-                                    <span class="trading-label">손절가:</span>
-                                    <span class="trading-value stop-loss">$${formatPrice(prices.stop)}</span>
-                                </div>
-                                <div class="trading-item">
-                                    <span class="trading-label">손익비:</span>
-                                    <span class="trading-value risk-reward">1:${prices.rr}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
+            coreCoinsData.forEach(coin => {
+                html += createCoinCard(coin);
             });
             
             container.innerHTML = html;
         }
         
-        // 체크리스트 렌더링
+        function renderGainersCards() {
+            const container = document.getElementById('gainersCards');
+            
+            if (!gainersData || gainersData.length === 0) {
+                container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px;">상승 코인 데이터를 로딩중입니다...</div>';
+                return;
+            }
+            
+            let html = '';
+            gainersData.forEach(coin => {
+                html += createCoinCard(coin);
+            });
+            
+            container.innerHTML = html;
+        }
+        
         function renderChecklist() {
             const container = document.getElementById('checklistGrid');
             let html = '';
@@ -1033,7 +1174,6 @@
             return totalScore;
         }
         
-        // 전략 업데이트
         function updateStrategy(totalScore) {
             let signal, leverage, position, status, avgRR;
             
@@ -1070,23 +1210,20 @@
             document.getElementById('marketStatus').textContent = status;
         }
         
-        // 메인 업데이트
         async function updateDashboard() {
             console.log('대시보드 업데이트 시작...');
             
-            await fetchCryptoData();
+            await fetchAllCryptoData();
             
-            if (cryptoData && cryptoData.length > 0) {
-                renderPriceCards();
-                const totalScore = renderChecklist();
-                updateStrategy(totalScore);
-            }
+            renderCoreCoinsCards();
+            renderGainersCards();
+            const totalScore = renderChecklist();
+            updateStrategy(totalScore);
             
             const now = new Date();
             document.getElementById('lastUpdate').textContent = now.toLocaleTimeString('ko-KR');
         }
         
-        // 카운트다운
         function startCountdown() {
             setInterval(() => {
                 countdown--;
@@ -1098,17 +1235,15 @@
             }, 1000);
         }
         
-        // 초기화
         async function init() {
             console.log('앱 초기화...');
+            renderFavorites();
             await updateDashboard();
             startCountdown();
             
-            // 2분마다 자동 업데이트 (API 제한 고려)
-            setInterval(updateDashboard, 120000);
+            setInterval(updateDashboard, 300000);
         }
         
-        // 페이지 로드시 실행
         window.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
