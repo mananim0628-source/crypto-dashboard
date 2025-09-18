@@ -54,6 +54,7 @@
             max-width: 800px;
             margin: 20px auto;
             padding: 0 20px;
+            position: relative;
         }
 
         .search-box {
@@ -93,11 +94,21 @@
         }
 
         .suggestions-list {
-            background: rgba(0, 0, 0, 0.8);
+            position: absolute;
+            top: 70px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.9);
             border-radius: 10px;
-            max-height: 200px;
+            max-height: 300px;
             overflow-y: auto;
             border: 1px solid rgba(0, 255, 136, 0.2);
+            z-index: 1000;
+            display: none;
+        }
+
+        .suggestions-list.show {
+            display: block;
         }
 
         .suggestion-item {
@@ -587,7 +598,6 @@
         let gainersData = [];
         let isApiWorking = false;
         
-        // localStorage 사용
         let favorites = [];
         try {
             favorites = JSON.parse(localStorage.getItem('cryptoFavorites') || '[]');
@@ -675,13 +685,10 @@
             if (debugResponse) debugResponse.textContent = response;
         }
 
-        // 핵심 코인 데이터 가져오기 (강화된 에러 처리)
         async function fetchCoreCoins() {
             console.log('📈 핵심 코인 데이터 요청 시작...');
             try {
                 const url = `https://api.coingecko.com/api/v3/simple/price?ids=${CORE_COINS.join(',')}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true`;
-                
-                console.log('API URL:', url);
                 
                 const response = await fetch(url, {
                     method: 'GET',
@@ -691,8 +698,6 @@
                     }
                 });
                 
-                console.log('Response status:', response.status);
-                
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
@@ -700,7 +705,6 @@
                 const data = await response.json();
                 console.log('핵심 코인 API 응답:', data);
                 
-                // 데이터 검증
                 if (!data || Object.keys(data).length === 0) {
                     throw new Error('빈 응답 데이터');
                 }
@@ -753,26 +757,20 @@
                 
             } catch (error) {
                 console.error('핵심 코인 데이터 에러:', error);
-                
-                // 더미 데이터 사용
                 coreCoinsData = [
                     { id: 'bitcoin', symbol: 'BTC', name: 'Bitcoin', icon: '🔥', price: 117764, change: 1.15, volume: 28000000000, marketCap: 1950000000000 },
                     { id: 'ethereum', symbol: 'ETH', name: 'Ethereum', icon: '⭐', price: 4619, change: 2.63, volume: 18000000000, marketCap: 430000000000 },
                     { id: 'ripple', symbol: 'XRP', name: 'Ripple', icon: '💎', price: 2.45, change: 2.8, volume: 3500000000, marketCap: 135000000000 },
                     { id: 'binancecoin', symbol: 'BNB', name: 'Binance', icon: '🪙', price: 520, change: 0.8, volume: 1800000000, marketCap: 78000000000 }
                 ];
-                console.log('더미 핵심 코인 데이터 사용');
                 return coreCoinsData;
             }
         }
 
-        // 상승 코인 데이터 가져오기 (강화된 에러 처리)
         async function fetchGainersCoins() {
             console.log('📈 상승 코인 데이터 요청 시작...');
             try {
                 const url = 'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=percent_change_24h&per_page=20&page=1&sparkline=false&price_change_percentage=24h';
-                
-                console.log('상승 코인 API URL:', url);
                 
                 const response = await fetch(url, {
                     method: 'GET',
@@ -781,8 +779,6 @@
                         'x-cg-pro-api-key': API_KEY
                     }
                 });
-                
-                console.log('상승 코인 Response status:', response.status);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -818,8 +814,6 @@
                 
             } catch (error) {
                 console.error('상승 코인 데이터 에러:', error);
-                
-                // 더미 데이터 사용
                 gainersData = [
                     { id: 'solana', symbol: 'SOL', name: 'Solana', icon: '📈', price: 185, change: 8.5, volume: 3200000000, marketCap: 85000000000 },
                     { id: 'cardano', symbol: 'ADA', name: 'Cardano', icon: '📈', price: 0.95, change: 7.2, volume: 1200000000, marketCap: 33000000000 },
@@ -828,12 +822,10 @@
                     { id: 'uniswap', symbol: 'UNI', name: 'Uniswap', icon: '📈', price: 12, change: 4.9, volume: 400000000, marketCap: 8000000000 },
                     { id: 'avalanche-2', symbol: 'AVAX', name: 'Avalanche', icon: '📈', price: 45, change: 4.2, volume: 700000000, marketCap: 18000000000 }
                 ];
-                console.log('더미 상승 코인 데이터 사용');
                 return gainersData;
             }
         }
 
-        // 전체 데이터 가져오기 (순차 실행)
         async function fetchAllCryptoData() {
             const timestamp = new Date().toLocaleTimeString();
             updateDebugInfo('요청 중...', timestamp, '-');
@@ -841,22 +833,15 @@
             console.log('🚀 전체 크립토 데이터 업데이트 시작');
             
             try {
-                // 순차적으로 실행 (동시 실행시 API 제한 문제 방지)
-                console.log('1. 핵심 코인 데이터 요청...');
                 await fetchCoreCoins();
-                
-                console.log('2. 상승 코인 데이터 요청...');
                 await fetchGainersCoins();
                 
-                // API 성공 상태 업데이트
                 isApiWorking = true;
                 document.getElementById('apiStatus').textContent = 'API ✅ PRO';
                 document.getElementById('apiStatus').className = 'api-status';
                 
                 updateDebugInfo('성공', timestamp, `핵심: ${coreCoinsData.length}개, 상승: ${gainersData.length}개`);
                 console.log('✅ 전체 데이터 업데이트 완료');
-                console.log('핵심 코인:', coreCoinsData.length, '개');
-                console.log('상승 코인:', gainersData.length, '개');
                 
             } catch (error) {
                 console.error('❌ 전체 데이터 업데이트 에러:', error);
@@ -866,7 +851,185 @@
             }
         }
 
-        // 나머지 함수들 (기존과 동일하지만 로그 추가)
+        // 코인 검색 API (수정된 버전)
+        async function searchCoin(query) {
+            try {
+                const url = `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(query)}`;
+                console.log('검색 API 호출:', url);
+                
+                const response = await fetch(url, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'x-cg-pro-api-key': API_KEY
+                    }
+                });
+                
+                if (!response.ok) throw new Error('검색 실패');
+                
+                const data = await response.json();
+                console.log('검색 결과:', data.coins?.slice(0, 5));
+                return data.coins?.slice(0, 5) || [];
+            } catch (error) {
+                console.error('검색 에러:', error);
+                return [];
+            }
+        }
+
+        // 특정 코인 데이터 가져오기
+        async function fetchSpecificCoin(coinId) {
+            try {
+                const url = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true`;
+                
+                const response = await fetch(url, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'x-cg-pro-api-key': API_KEY
+                    }
+                });
+                
+                if (!response.ok) throw new Error('데이터 가져오기 실패');
+                
+                const data = await response.json();
+                const coinData = data[coinId];
+                
+                if (!coinData) throw new Error('코인 데이터 없음');
+                
+                return {
+                    id: coinId,
+                    symbol: coinId.toUpperCase(),
+                    name: coinId,
+                    icon: '🔍',
+                    price: coinData.usd,
+                    change: coinData.usd_24h_change || 0,
+                    volume: coinData.usd_24h_vol || 0,
+                    marketCap: coinData.usd_market_cap || 0
+                };
+            } catch (error) {
+                console.error('코인 데이터 에러:', error);
+                return null;
+            }
+        }
+
+        // 자동완성 기능 (수정된 버전)
+        let searchTimeout;
+        const searchInput = document.getElementById('coinSearch');
+        const suggestionsContainer = document.getElementById('searchSuggestions');
+
+        searchInput.addEventListener('input', function(e) {
+            const query = e.target.value.trim();
+            
+            clearTimeout(searchTimeout);
+            
+            if (query.length < 2) {
+                suggestionsContainer.classList.remove('show');
+                return;
+            }
+            
+            searchTimeout = setTimeout(async () => {
+                console.log('자동완성 검색:', query);
+                const suggestions = await searchCoin(query);
+                displaySuggestions(suggestions);
+            }, 300);
+        });
+
+        // 클릭 외부 영역 클릭시 자동완성 숨기기
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.search-container')) {
+                suggestionsContainer.classList.remove('show');
+            }
+        });
+
+        // 검색 제안 표시 (수정된 버전)
+        function displaySuggestions(suggestions) {
+            console.log('자동완성 표시:', suggestions.length, '개');
+            
+            if (suggestions.length === 0) {
+                suggestionsContainer.innerHTML = '<div class="suggestion-item">검색 결과가 없습니다</div>';
+                suggestionsContainer.classList.add('show');
+                return;
+            }
+            
+            let html = '';
+            suggestions.forEach(coin => {
+                html += `
+                    <div class="suggestion-item" onclick="selectCoin('${coin.id}', '${coin.name}')">
+                        <strong>${coin.name}</strong> (${coin.symbol})
+                        <br><small>Rank: #${coin.market_cap_rank || 'N/A'}</small>
+                    </div>
+                `;
+            });
+            
+            suggestionsContainer.innerHTML = html;
+            suggestionsContainer.classList.add('show');
+        }
+
+        // 코인 선택 (수정된 버전)
+        async function selectCoin(coinId, coinName) {
+            console.log('코인 선택:', coinId, coinName);
+            searchInput.value = coinName;
+            suggestionsContainer.classList.remove('show');
+            
+            await analyzeCoin(coinId);
+        }
+
+        async function analyzeCoinById(coinId) {
+            await analyzeCoin(coinId);
+        }
+
+        // 검색 버튼 클릭
+        document.getElementById('searchBtn').addEventListener('click', async function() {
+            const query = searchInput.value.trim();
+            if (!query) return;
+            
+            console.log('검색 버튼 클릭:', query);
+            const suggestions = await searchCoin(query);
+            if (suggestions.length > 0) {
+                await analyzeCoin(suggestions[0].id);
+            }
+        });
+
+        // Enter 키 검색
+        searchInput.addEventListener('keypress', async function(e) {
+            if (e.key === 'Enter') {
+                const query = this.value.trim();
+                if (!query) return;
+                
+                suggestionsContainer.classList.remove('show');
+                const suggestions = await searchCoin(query);
+                if (suggestions.length > 0) {
+                    await analyzeCoin(suggestions[0].id);
+                }
+            }
+        });
+
+        async function analyzeCoin(coinId) {
+            try {
+                console.log('코인 분석 시작:', coinId);
+                const coinData = await fetchSpecificCoin(coinId);
+                
+                if (!coinData) {
+                    alert('데이터를 가져올 수 없습니다.');
+                    return;
+                }
+                
+                coinData.analyzed = true;
+                gainersData.unshift(coinData);
+                if (gainersData.length > 7) gainersData.pop();
+                
+                renderGainersCards();
+                
+                // 체크리스트 강제 업데이트
+                const totalScore = renderChecklist();
+                updateStrategy(totalScore);
+                
+                console.log('✅ 코인 분석 완료');
+                
+            } catch (error) {
+                console.error('분석 에러:', error);
+                alert('분석 중 오류가 발생했습니다.');
+            }
+        }
+        
         function calculateCoinScore(coin) {
             let score = 0;
             
@@ -917,12 +1080,19 @@
             }
         }
         
+        // 체크리스트 점수 계산 (수정된 버전)
         function calculateChecklistScores() {
             const allCoins = [...coreCoinsData, ...gainersData];
-            console.log('체크리스트 계산용 코인 수:', allCoins.length);
+            console.log('🔢 체크리스트 계산 - 전체 코인 수:', allCoins.length);
+            console.log('핵심 코인:', coreCoinsData.length, '개');
+            console.log('상승 코인:', gainersData.length, '개');
             
             if (!allCoins || allCoins.length === 0) {
-                console.log('코인 데이터가 없어서 체크리스트 점수 0 반환');
+                console.log('❌ 코인 데이터가 없어서 체크리스트 점수 0 반환');
+                // 모든 체크리스트 항목을 0으로 리셋
+                checklistItems.forEach(item => {
+                    item.score = 0;
+                });
                 return 0;
             }
             
@@ -930,20 +1100,27 @@
             const totalVolume = allCoins.reduce((sum, coin) => sum + (coin.volume || 0), 0);
             const btc = allCoins.find(coin => coin.symbol === 'BTC');
             
-            console.log('평균 변화율:', avgChange.toFixed(2), '%');
-            console.log('총 거래량:', totalVolume.toLocaleString());
-            console.log('BTC 데이터:', btc ? `$${btc.price.toLocaleString()}` : '없음');
+            console.log('📊 계산 데이터:');
+            console.log('- 평균 변화율:', avgChange.toFixed(2), '%');
+            console.log('- 총 거래량:', totalVolume.toLocaleString());
+            console.log('- BTC 데이터:', btc ? `$${btc.price.toLocaleString()}, ${btc.change.toFixed(2)}%` : '없음');
             
-            checklistItems[0].score = Math.min(20, Math.max(0, Math.floor(10 + avgChange * 2)));
-            checklistItems[1].score = Math.min(25, Math.max(0, btc ? Math.floor(12 + (btc.price > 95000 ? 10 : 5)) : 12));
-            checklistItems[2].score = Math.min(25, Math.max(0, Math.floor(totalVolume / 5000000000)));
-            checklistItems[3].score = Math.min(20, Math.max(0, Math.floor(10 + avgChange)));
-            checklistItems[4].score = Math.min(20, Math.max(0, Math.floor(15 - Math.abs(avgChange) * 2)));
-            checklistItems[5].score = Math.min(20, Math.max(0, btc ? Math.floor(10 + btc.change * 3) : 10));
-            checklistItems[6].score = Math.min(10, Math.max(0, Math.floor(5 + avgChange)));
+            // 점수 계산 (더 관대한 기준 적용)
+            checklistItems[0].score = Math.min(20, Math.max(0, Math.floor(12 + avgChange * 1.5))); // 거시환경
+            checklistItems[1].score = Math.min(25, Math.max(5, btc ? Math.floor(15 + (btc.price > 95000 ? 8 : 3)) : 15)); // ETF
+            checklistItems[2].score = Math.min(25, Math.max(5, Math.floor(totalVolume / 3000000000))); // 온체인
+            checklistItems[3].score = Math.min(20, Math.max(5, Math.floor(12 + avgChange * 0.8))); // AI
+            checklistItems[4].score = Math.min(20, Math.max(5, Math.floor(18 - Math.abs(avgChange) * 1.2))); // 선물
+            checklistItems[5].score = Math.min(20, Math.max(5, btc ? Math.floor(12 + btc.change * 2) : 12)); // 기술적
+            checklistItems[6].score = Math.min(10, Math.max(2, Math.floor(6 + avgChange * 0.5))); // 전략
             
             const totalScore = checklistItems.reduce((sum, item) => sum + item.score, 0);
-            console.log('계산된 총 점수:', totalScore + '/140');
+            
+            console.log('📋 체크리스트 세부 점수:');
+            checklistItems.forEach(item => {
+                console.log(`- ${item.name}: ${item.score}/${item.max}점`);
+            });
+            console.log('✅ 총 점수:', totalScore + '/140점');
             
             return totalScore;
         }
@@ -1162,25 +1339,21 @@
             console.log('✅ 전략 업데이트 완료:', signal);
         }
         
-        // 메인 업데이트 함수 (강화된 로깅)
         async function updateDashboard() {
             console.log('🚀 대시보드 전체 업데이트 시작...');
             
-            // 1. 데이터 가져오기
             await fetchAllCryptoData();
             
-            // 2. 카드 렌더링
             console.log('🎨 UI 렌더링 시작...');
             renderCoreCoinsCards();
             renderGainersCards();
             
-            // 3. 체크리스트 계산 및 렌더링
-            const totalScore = renderChecklist();
-            
-            // 4. 전략 업데이트
+            // 체크리스트 계산 및 렌더링 (강제 실행)
+            console.log('📊 체크리스트 강제 업데이트...');
+            const totalScore = calculateChecklistScores();
+            renderChecklist();
             updateStrategy(totalScore);
             
-            // 5. 시간 업데이트
             const now = new Date();
             document.getElementById('lastUpdate').textContent = now.toLocaleTimeString('ko-KR');
             
@@ -1198,34 +1371,23 @@
             }, 1000);
         }
         
-        // 초기화 함수 (강화된 로깅)
         async function init() {
             console.log('🎬 앱 초기화 시작...');
-            console.log('브라우저:', navigator.userAgent);
-            console.log('현재 시간:', new Date().toLocaleString());
             
-            // 즐겨찾기 렌더링
             renderFavorites();
-            
-            // 첫 데이터 업데이트
             await updateDashboard();
-            
-            // 카운트다운 시작
             startCountdown();
             
-            // 정기 업데이트 (5분마다)
             setInterval(updateDashboard, 300000);
             
             console.log('🎉 앱 초기화 완료!');
         }
         
-        // 페이지 로드시 실행
         window.addEventListener('DOMContentLoaded', () => {
             console.log('📄 DOM 로드 완료, 앱 시작...');
             init();
         });
 
-        // 에러 핸들링
         window.addEventListener('error', (event) => {
             console.error('❌ 전역 에러:', event.error);
             updateDebugInfo('에러 발생', new Date().toLocaleTimeString(), event.error.message);
