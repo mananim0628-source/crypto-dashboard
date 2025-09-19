@@ -126,6 +126,40 @@
             border-bottom: none;
         }
 
+        /* 검색 결과 전용 섹션 */
+        .search-results-section {
+            margin: 20px auto;
+            max-width: 1600px;
+            padding: 0 20px;
+            display: none;
+        }
+
+        .search-results-section.show {
+            display: block;
+        }
+
+        .search-results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .search-results-title {
+            font-size: 18px;
+            color: #48cae4;
+        }
+
+        .clear-search {
+            background: rgba(255, 71, 87, 0.2);
+            color: #ff4757;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
         .favorites-section {
             margin: 20px auto;
             max-width: 1600px;
@@ -516,7 +550,7 @@
     <div class="header">
         <h1>🚀 크립토 6단계 체크리스트 실시간 대시보드 PRO</h1>
         <div class="update-status">
-            마지막 업데이트: <span id="lastUpdate">-</span> | 다음 업데이트: <span id="countdown">60</span>초
+            마지막 업데이트: <span id="lastUpdate">-</span> | 다음 업데이트: <span id="countdown">120</span>초
             <span class="api-status" id="apiStatus">API 연결중...</span>
         </div>
     </div>
@@ -527,6 +561,15 @@
             <button id="searchBtn">🔍 분석</button>
         </div>
         <div id="searchSuggestions" class="suggestions-list"></div>
+    </div>
+
+    <!-- 검색 결과 전용 섹션 (검색창 바로 밑에) -->
+    <div class="search-results-section" id="searchResultsSection">
+        <div class="search-results-header">
+            <div class="search-results-title">🔍 검색 결과</div>
+            <button class="clear-search" onclick="clearSearchResults()">결과 닫기</button>
+        </div>
+        <div id="searchResultsCards" class="price-cards"></div>
     </div>
 
     <div class="favorites-section">
@@ -593,10 +636,14 @@
 
     <script>
         const API_KEY = 'CG-AJku92n1VmZV1ZQ2mp46DA2C';
-        let countdown = 60;
+        const API_BASE_URL = 'https://pro-api.coingecko.com/api/v3';
+        let countdown = 120; // 2분으로 변경
         let coreCoinsData = [];
         let gainersData = [];
+        let searchResultData = null; // 검색 결과 저장
         let isApiWorking = false;
+        let updateInterval;
+        let countdownInterval;
         
         let favorites = [];
         try {
@@ -617,6 +664,24 @@
             { id: 'technical', name: '📉 기술적 분석', max: 20, score: 0 },
             { id: 'strategy', name: '🎯 전략', max: 10, score: 0 }
         ];
+
+        // 공통 API 호출 함수
+        async function fetchWithHeaders(url) {
+            console.log('API 요청:', url);
+            
+            const response = await fetch(url, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Cg-Pro-Api-Key': API_KEY
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return response;
+        }
 
         function addToFavorites(coinId, symbol) {
             if (!favorites.find(fav => fav.coinId === coinId)) {
@@ -688,21 +753,11 @@
         async function fetchCoreCoins() {
             console.log('📈 핵심 코인 데이터 요청 시작...');
             try {
-                const url = `https://api.coingecko.com/api/v3/simple/price?ids=${CORE_COINS.join(',')}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true`;
+                const url = `${API_BASE_URL}/simple/price?ids=${CORE_COINS.join(',')}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true`;
                 
-                const response = await fetch(url, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json',
-                        'x-cg-pro-api-key': API_KEY
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
+                const response = await fetchWithHeaders(url);
                 const data = await response.json();
+                
                 console.log('핵심 코인 API 응답:', data);
                 
                 if (!data || Object.keys(data).length === 0) {
@@ -757,48 +812,30 @@
                 
             } catch (error) {
                 console.error('핵심 코인 데이터 에러:', error);
-                coreCoinsData = [
-                    { id: 'bitcoin', symbol: 'BTC', name: 'Bitcoin', icon: '🔥', price: 117764, change: 1.15, volume: 28000000000, marketCap: 1950000000000 },
-                    { id: 'ethereum', symbol: 'ETH', name: 'Ethereum', icon: '⭐', price: 4619, change: 2.63, volume: 18000000000, marketCap: 430000000000 },
-                    { id: 'ripple', symbol: 'XRP', name: 'Ripple', icon: '💎', price: 2.45, change: 2.8, volume: 3500000000, marketCap: 135000000000 },
-                    { id: 'binancecoin', symbol: 'BNB', name: 'Binance', icon: '🪙', price: 520, change: 0.8, volume: 1800000000, marketCap: 78000000000 }
-                ];
-                return coreCoinsData;
+                throw error;
             }
         }
 
         async function fetchGainersCoins() {
             console.log('📈 상승 코인 데이터 요청 시작...');
             try {
-                // 더 많은 데이터로 정확한 상승 코인 가져오기
-                const url = 'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=percent_change_24h_desc&per_page=50&page=1&sparkline=false&price_change_percentage=24h';
+                const url = `${API_BASE_URL}/coins/markets?vs_currency=usd&order=percent_change_24h_desc&per_page=50&page=1&sparkline=false&price_change_percentage=24h`;
                 
-                const response = await fetch(url, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json',
-                        'x-cg-pro-api-key': API_KEY
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
+                const response = await fetchWithHeaders(url);
                 const data = await response.json();
+                
                 console.log('상승 코인 API 응답 (첫 10개):', data.slice(0, 10));
                 
                 if (!data || !Array.isArray(data) || data.length === 0) {
                     throw new Error('상승 코인 데이터가 배열이 아니거나 비어있음');
                 }
                 
-                // 더 넓은 범위에서 필터링 (시가총액 500위 이내, 최소 상승률 1% 이상)
                 gainersData = data
                     .filter(coin => 
                         !CORE_COINS.includes(coin.id) && 
                         coin.price_change_percentage_24h > 1 &&
                         coin.market_cap_rank <= 500 &&
-                        coin.total_volume > 1000000 // 최소 거래량 조건 추가
+                        coin.total_volume > 1000000
                     )
                     .slice(0, 6)
                     .map(coin => ({
@@ -817,15 +854,7 @@
                 
             } catch (error) {
                 console.error('상승 코인 데이터 에러:', error);
-                gainersData = [
-                    { id: 'solana', symbol: 'SOL', name: 'Solana', icon: '📈', price: 185, change: 8.5, volume: 3200000000, marketCap: 85000000000 },
-                    { id: 'cardano', symbol: 'ADA', name: 'Cardano', icon: '📈', price: 0.95, change: 7.2, volume: 1200000000, marketCap: 33000000000 },
-                    { id: 'polygon', symbol: 'MATIC', name: 'Polygon', icon: '📈', price: 1.2, change: 6.8, volume: 800000000, marketCap: 12000000000 },
-                    { id: 'chainlink', symbol: 'LINK', name: 'Chainlink', icon: '📈', price: 25, change: 5.4, volume: 600000000, marketCap: 15000000000 },
-                    { id: 'uniswap', symbol: 'UNI', name: 'Uniswap', icon: '📈', price: 12, change: 4.9, volume: 400000000, marketCap: 8000000000 },
-                    { id: 'avalanche-2', symbol: 'AVAX', name: 'Avalanche', icon: '📈', price: 45, change: 4.2, volume: 700000000, marketCap: 18000000000 }
-                ];
-                return gainersData;
+                throw error;
             }
         }
 
@@ -836,8 +865,7 @@
             console.log('🚀 전체 크립토 데이터 업데이트 시작');
             
             try {
-                await fetchCoreCoins();
-                await fetchGainersCoins();
+                await Promise.all([fetchCoreCoins(), fetchGainersCoins()]);
                 
                 isApiWorking = true;
                 document.getElementById('apiStatus').textContent = 'API ✅ PRO';
@@ -849,169 +877,109 @@
             } catch (error) {
                 console.error('❌ 전체 데이터 업데이트 에러:', error);
                 updateDebugInfo(`에러: ${error.message}`, timestamp, '-');
-                document.getElementById('apiStatus').textContent = 'API ❌ 더미';
+                document.getElementById('apiStatus').textContent = 'API ❌';
                 document.getElementById('apiStatus').className = 'api-status api-error';
+                isApiWorking = false;
             }
         }
 
-        // 코인 검색 API (실제 API 우선 사용)
-        // 코인 검색 API (더 강화된 버전)
-async function searchCoin(query) {
-    try {
-        // 1차: 실제 CoinGecko 검색 API 시도
-        const searchUrl = `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(query)}`;
-        console.log('검색 API 호출:', searchUrl);
-        
-        const searchResponse = await fetch(searchUrl, {
-            headers: {
-                'Accept': 'application/json',
-                'x-cg-pro-api-key': API_KEY
-            }
-        });
-        
-        if (searchResponse.ok) {
-            const searchData = await searchResponse.json();
-            console.log('실제 API 검색 결과:', searchData.coins?.slice(0, 5));
-            
-            if (searchData.coins && searchData.coins.length > 0) {
-                return searchData.coins.slice(0, 5);
-            }
-        }
-        
-        // 2차: 마켓 데이터에서 직접 검색 (더 광범위한 검색)
-        console.log('마켓 데이터에서 검색 시도...');
-        const marketUrl = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false`;
-        
-        const marketResponse = await fetch(marketUrl, {
-            headers: {
-                'Accept': 'application/json',
-                'x-cg-pro-api-key': API_KEY
-            }
-        });
-        
-        if (marketResponse.ok) {
-            const marketData = await marketResponse.json();
-            
-            // 코인명, 심볼, ID로 필터링
-            const filtered = marketData.filter(coin => 
-                coin.name.toLowerCase().includes(query.toLowerCase()) ||
-                coin.symbol.toLowerCase().includes(query.toLowerCase()) ||
-                coin.id.toLowerCase().includes(query.toLowerCase())
-            );
-            
-            console.log('마켓 데이터 검색 결과:', filtered.slice(0, 5));
-            
-            if (filtered.length > 0) {
-                return filtered.slice(0, 5).map(coin => ({
-                    id: coin.id,
-                    name: coin.name,
-                    symbol: coin.symbol,
-                    market_cap_rank: coin.market_cap_rank
-                }));
+        // 코인 검색 API
+        async function searchCoin(query) {
+            try {
+                const searchUrl = `${API_BASE_URL}/search?query=${encodeURIComponent(query)}`;
+                console.log('검색 API 호출:', searchUrl);
+                
+                const searchResponse = await fetchWithHeaders(searchUrl);
+                
+                if (searchResponse.ok) {
+                    const searchData = await searchResponse.json();
+                    console.log('실제 API 검색 결과:', searchData.coins?.slice(0, 5));
+                    
+                    if (searchData.coins && searchData.coins.length > 0) {
+                        return searchData.coins.slice(0, 5);
+                    }
+                }
+                
+                throw new Error('검색 결과 없음');
+                
+            } catch (error) {
+                console.error('검색 에러:', error);
+                // 더미 검색 결과
+                const dummyResults = [
+                    { id: 'dogecoin', name: 'Dogecoin', symbol: 'DOGE', market_cap_rank: 8 },
+                    { id: 'shiba-inu', name: 'Shiba Inu', symbol: 'SHIB', market_cap_rank: 15 },
+                    { id: 'matic-network', name: 'Polygon', symbol: 'MATIC', market_cap_rank: 12 },
+                    { id: 'uniswap', name: 'Uniswap', symbol: 'UNI', market_cap_rank: 20 },
+                    { id: 'chainlink', name: 'Chainlink', symbol: 'LINK', market_cap_rank: 16 }
+                ];
+                
+                const filtered = dummyResults.filter(coin => 
+                    coin.name.toLowerCase().includes(query.toLowerCase()) ||
+                    coin.symbol.toLowerCase().includes(query.toLowerCase()) ||
+                    coin.id.toLowerCase().includes(query.toLowerCase())
+                );
+                
+                return filtered.slice(0, 5);
             }
         }
-        
-        throw new Error('모든 검색 방법 실패');
-        
-    } catch (error) {
-        console.error('검색 에러, 더미 데이터 사용:', error);
-        
-        // 3차: 확장된 더미 데이터 (ENA, HIFI 포함)
-        const dummyResults = [
-            { id: 'ethena', name: 'Ethena', symbol: 'ENA', market_cap_rank: 45 },
-            { id: 'hifi-finance', name: 'Hifi Finance', symbol: 'HIFI', market_cap_rank: 180 },
-            { id: 'dogecoin', name: 'Dogecoin', symbol: 'DOGE', market_cap_rank: 8 },
-            { id: 'shiba-inu', name: 'Shiba Inu', symbol: 'SHIB', market_cap_rank: 15 },
-            { id: 'matic-network', name: 'Polygon', symbol: 'MATIC', market_cap_rank: 12 },
-            { id: 'uniswap', name: 'Uniswap', symbol: 'UNI', market_cap_rank: 20 },
-            { id: 'chainlink', name: 'Chainlink', symbol: 'LINK', market_cap_rank: 16 },
-            { id: 'cardano', name: 'Cardano', symbol: 'ADA', market_cap_rank: 9 },
-            { id: 'solana', name: 'Solana', symbol: 'SOL', market_cap_rank: 7 },
-            { id: 'avalanche-2', name: 'Avalanche', symbol: 'AVAX', market_cap_rank: 14 },
-            { id: 'polkadot', name: 'Polkadot', symbol: 'DOT', market_cap_rank: 11 },
-            { id: 'tron', name: 'TRON', symbol: 'TRX', market_cap_rank: 13 },
-            { id: 'pepe', name: 'Pepe', symbol: 'PEPE', market_cap_rank: 25 },
-            { id: 'bonk', name: 'Bonk', symbol: 'BONK', market_cap_rank: 50 },
-            { id: 'floki', name: 'FLOKI', symbol: 'FLOKI', market_cap_rank: 60 }
-        ];
-        
-        const filtered = dummyResults.filter(coin => 
-            coin.name.toLowerCase().includes(query.toLowerCase()) ||
-            coin.symbol.toLowerCase().includes(query.toLowerCase()) ||
-            coin.id.toLowerCase().includes(query.toLowerCase())
-        );
-        
-        return filtered.slice(0, 5);
-    }
-}
 
-        // 특정 코인 데이터 가져오기 (개선된 버전)
-        // 특정 코인 데이터 가져오기 (더 강화된 버전)
-async function fetchSpecificCoin(coinId) {
-    try {
-        const url = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true`;
-        
-        console.log('특정 코인 API 호출:', url);
-        
-        const response = await fetch(url, {
-            headers: {
-                'Accept': 'application/json',
-                'x-cg-pro-api-key': API_KEY
+        // 특정 코인 데이터 가져오기
+        async function fetchSpecificCoin(coinId) {
+            try {
+                const url = `${API_BASE_URL}/simple/price?ids=${coinId}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true`;
+                
+                console.log('특정 코인 API 호출:', url);
+                
+                const response = await fetchWithHeaders(url);
+                
+                if (!response.ok) {
+                    console.warn('API 응답 실패:', response.status);
+                    return null;
+                }
+                
+                const data = await response.json();
+                console.log('API 응답 데이터:', data);
+                
+                const coinData = data[coinId];
+                
+                if (!coinData) {
+                    console.warn('코인 데이터 없음:', coinId);
+                    return null;
+                }
+                
+                // 코인 이름과 심볼 매핑
+                let coinName = coinId.charAt(0).toUpperCase() + coinId.slice(1);
+                let coinSymbol = coinId.split('-')[0].toUpperCase();
+                
+                const nameMapping = {
+                    'matic-network': { name: 'Polygon', symbol: 'MATIC' },
+                    'shiba-inu': { name: 'Shiba Inu', symbol: 'SHIB' },
+                    'avalanche-2': { name: 'Avalanche', symbol: 'AVAX' },
+                    'binancecoin': { name: 'BNB', symbol: 'BNB' }
+                };
+                
+                if (nameMapping[coinId]) {
+                    coinName = nameMapping[coinId].name;
+                    coinSymbol = nameMapping[coinId].symbol;
+                }
+                
+                return {
+                    id: coinId,
+                    symbol: coinSymbol,
+                    name: coinName,
+                    icon: '🔍',
+                    price: coinData.usd || 0,
+                    change: coinData.usd_24h_change || 0,
+                    volume: coinData.usd_24h_vol || 0,
+                    marketCap: coinData.usd_market_cap || 0
+                };
+            } catch (error) {
+                console.error('특정 코인 데이터 에러:', error);
+                return null;
             }
-        });
-        
-        if (!response.ok) {
-            console.warn('API 응답 실패:', response.status);
-            return null;
         }
-        
-        const data = await response.json();
-        console.log('API 응답 데이터:', data);
-        
-        const coinData = data[coinId];
-        
-        if (!coinData) {
-            console.warn('코인 데이터 없음:', coinId);
-            return null;
-        }
-        
-        // 코인 이름과 심볼을 더 정확하게 가져오기 (확장된 매핑)
-        let coinName = coinId.charAt(0).toUpperCase() + coinId.slice(1);
-        let coinSymbol = coinId.split('-')[0].toUpperCase();
-        
-        // 확장된 특별 케이스 처리
-        const nameMapping = {
-            'matic-network': { name: 'Polygon', symbol: 'MATIC' },
-            'shiba-inu': { name: 'Shiba Inu', symbol: 'SHIB' },
-            'avalanche-2': { name: 'Avalanche', symbol: 'AVAX' },
-            'binancecoin': { name: 'BNB', symbol: 'BNB' },
-            'ethena': { name: 'Ethena', symbol: 'ENA' },
-            'hifi-finance': { name: 'Hifi Finance', symbol: 'HIFI' },
-            'ethereum-name-service': { name: 'Ethereum Name Service', symbol: 'ENS' },
-            'wrapped-bitcoin': { name: 'Wrapped Bitcoin', symbol: 'WBTC' }
-        };
-        
-        if (nameMapping[coinId]) {
-            coinName = nameMapping[coinId].name;
-            coinSymbol = nameMapping[coinId].symbol;
-        }
-        
-        return {
-            id: coinId,
-            symbol: coinSymbol,
-            name: coinName,
-            icon: '🔍',
-            price: coinData.usd || 0,
-            change: coinData.usd_24h_change || 0,
-            volume: coinData.usd_24h_vol || 0,
-            marketCap: coinData.usd_market_cap || 0
-        };
-    } catch (error) {
-        console.error('특정 코인 데이터 에러:', error);
-        return null;
-    }
-}
 
+        // 검색 관련 이벤트 리스너
         let searchTimeout;
         const searchInput = document.getElementById('coinSearch');
         const suggestionsContainer = document.getElementById('searchSuggestions');
@@ -1067,14 +1035,25 @@ async function fetchSpecificCoin(coinId) {
             searchInput.value = `${coinName} (${symbol})`;
             suggestionsContainer.classList.remove('show');
             
-            const container = document.getElementById('gainersCards');
-            container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #48cae4;">🔍 ' + coinName + ' 분석 중...</div>';
+            // 검색 결과 섹션 표시
+            const searchSection = document.getElementById('searchResultsSection');
+            const searchContainer = document.getElementById('searchResultsCards');
             
-            await analyzeCoin(coinId, coinName, symbol);
+            searchSection.classList.add('show');
+            searchContainer.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #48cae4;">🔍 ' + coinName + ' 분석 중...</div>';
+            
+            await analyzeCoin(coinId, coinName, symbol, true); // 검색 결과임을 표시
         }
 
         async function analyzeCoinById(coinId) {
-            await analyzeCoin(coinId, coinId, coinId.toUpperCase());
+            await analyzeCoin(coinId, coinId, coinId.toUpperCase(), true);
+        }
+
+        function clearSearchResults() {
+            const searchSection = document.getElementById('searchResultsSection');
+            searchSection.classList.remove('show');
+            searchResultData = null;
+            searchInput.value = '';
         }
 
         document.getElementById('searchBtn').addEventListener('click', async function() {
@@ -1124,7 +1103,7 @@ async function fetchSpecificCoin(coinId) {
             }
         });
 
-        async function analyzeCoin(coinId, coinName, symbol) {
+        async function analyzeCoin(coinId, coinName, symbol, isSearchResult = false) {
             try {
                 console.log('코인 분석 시작:', coinId, coinName, symbol);
                 
@@ -1132,20 +1111,33 @@ async function fetchSpecificCoin(coinId) {
                 
                 if (!coinData) {
                     console.log('API 실패, 더미 데이터 사용');
-                    coinData = generateDummyCoinData(coinId, coinName, symbol);
+                    coinData = {
+                        id: coinId,
+                        symbol: symbol || coinId.toUpperCase(),
+                        name: coinName || coinId,
+                        icon: '🔍',
+                        price: Math.random() * 100 + 1,
+                        change: (Math.random() - 0.5) * 20,
+                        volume: Math.random() * 1000000000,
+                        marketCap: Math.random() * 10000000000
+                    };
                 }
                 
-                coinData.analyzed = true;
-                
-                const existingIndex = gainersData.findIndex(coin => coin.id === coinId);
-                if (existingIndex >= 0) {
-                    gainersData[existingIndex] = coinData;
+                if (isSearchResult) {
+                    // 검색 결과로 표시
+                    searchResultData = coinData;
+                    renderSearchResults();
                 } else {
-                    gainersData.unshift(coinData);
-                    if (gainersData.length > 7) gainersData.pop();
+                    // 기존 상승 코인 리스트에 추가
+                    const existingIndex = gainersData.findIndex(coin => coin.id === coinId);
+                    if (existingIndex >= 0) {
+                        gainersData[existingIndex] = coinData;
+                    } else {
+                        gainersData.unshift(coinData);
+                        if (gainersData.length > 7) gainersData.pop();
+                    }
+                    renderGainersCards();
                 }
-                
-                renderGainersCards();
                 
                 const totalScore = calculateChecklistScores();
                 renderChecklist();
@@ -1155,25 +1147,11 @@ async function fetchSpecificCoin(coinId) {
                 
             } catch (error) {
                 console.error('분석 에러:', error);
-                const container = document.getElementById('gainersCards');
-                container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #ff4757;">❌ 분석 중 오류가 발생했습니다.</div>';
+                const targetContainer = isSearchResult ? 
+                    document.getElementById('searchResultsCards') : 
+                    document.getElementById('gainersCards');
+                targetContainer.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #ff4757;">❌ 분석 중 오류가 발생했습니다.</div>';
             }
-        }
-
-        function generateDummyCoinData(coinId, coinName, symbol) {
-            const randomPrice = Math.random() * 100 + 1;
-            const randomChange = (Math.random() - 0.5) * 20;
-            
-            return {
-                id: coinId,
-                symbol: symbol || coinId.toUpperCase(),
-                name: coinName || coinId,
-                icon: '🔍',
-                price: randomPrice,
-                change: randomChange,
-                volume: Math.random() * 1000000000,
-                marketCap: Math.random() * 10000000000
-            };
         }
         
         function calculateCoinScore(coin) {
@@ -1229,8 +1207,6 @@ async function fetchSpecificCoin(coinId) {
         function calculateChecklistScores() {
             const allCoins = [...coreCoinsData, ...gainersData];
             console.log('🔢 체크리스트 계산 - 전체 코인 수:', allCoins.length);
-            console.log('핵심 코인:', coreCoinsData.length, '개');
-            console.log('상승 코인:', gainersData.length, '개');
             
             if (!allCoins || allCoins.length === 0) {
                 console.log('❌ 코인 데이터가 없어서 체크리스트 점수 0 반환');
@@ -1375,6 +1351,20 @@ async function fetchSpecificCoin(coinId) {
             
             renderCoreCoinsCards();
             renderGainersCards();
+            if (searchResultData) renderSearchResults();
+        }
+
+        function renderSearchResults() {
+            console.log('🔍 검색 결과 렌더링...');
+            const container = document.getElementById('searchResultsCards');
+            
+            if (!searchResultData) {
+                container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px;">검색 결과가 없습니다.</div>';
+                return;
+            }
+            
+            container.innerHTML = createCoinCard(searchResultData);
+            console.log('✅ 검색 결과 렌더링 완료');
         }
         
         function renderCoreCoinsCards() {
@@ -1502,10 +1492,14 @@ async function fetchSpecificCoin(coinId) {
         }
         
         function startCountdown() {
-            setInterval(() => {
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+            
+            countdownInterval = setInterval(() => {
                 countdown--;
                 if (countdown <= 0) {
-                    countdown = 60;
+                    countdown = 120; // 2분으로 리셋
                     updateDashboard();
                 }
                 document.getElementById('countdown').textContent = countdown;
@@ -1519,19 +1513,33 @@ async function fetchSpecificCoin(coinId) {
             await updateDashboard();
             startCountdown();
             
-            setInterval(updateDashboard, 300000);
+            // 10분마다 추가 업데이트 (API 토큰 절약)
+            if (updateInterval) {
+                clearInterval(updateInterval);
+            }
+            updateInterval = setInterval(updateDashboard, 600000); // 10분
             
             console.log('🎉 앱 초기화 완료!');
         }
         
-        window.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', () => {
             console.log('📄 DOM 로드 완료, 앱 시작...');
             init();
+        });
+
+        window.addEventListener('beforeunload', () => {
+            if (updateInterval) clearInterval(updateInterval);
+            if (countdownInterval) clearInterval(countdownInterval);
         });
 
         window.addEventListener('error', (event) => {
             console.error('❌ 전역 에러:', event.error);
             updateDebugInfo('에러 발생', new Date().toLocaleTimeString(), event.error.message);
+        });
+
+        window.addEventListener('unhandledrejection', (event) => {
+            console.error('❌ 처리되지 않은 Promise 거부:', event.reason);
+            updateDebugInfo('Promise 에러', new Date().toLocaleTimeString(), event.reason.toString());
         });
     </script>
 </body>
