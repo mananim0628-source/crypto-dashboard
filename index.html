@@ -203,9 +203,15 @@
         async function fetchCoreCoins() {
     console.log('📈 핵심 코인 데이터 요청 시작...');
     try {
-        const url = `https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,ripple,binancecoin&vs_currencies=usd&include_24hr_change=true&x_cg_pro_api_key=CG-AJku92n1VmZV1ZQ2mp46DA2C`;
+        // Pro API는 다른 파라미터명을 사용할 수 있음
+        const url = `https://pro-api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,ripple,binancecoin&vs_currencies=usd&include_24hr_change=true`;
         
-        const response = await fetch(url);
+        const response = await fetch(url, {
+            headers: {
+                'Accept': 'application/json',
+                'X-Cg-Pro-Api-Key': 'CG-AJku92n1VmZV1ZQ2mp46DA2C'
+            }
+        });
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
