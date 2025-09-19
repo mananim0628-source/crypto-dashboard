@@ -825,57 +825,52 @@
         }
 
         async function fetchGainersCoins() {
-    console.log('📈 상승 코인 데이터 요청 시작...');
-    try {
-        const url = 'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=percent_change_24h_desc&per_page=100&page=1&sparkline=false&price_change_percentage=24h';
-        
-        const data = await fetchWithRetry(url);
-        console.log('상승 코인 API 응답 (첫 10개):', data.slice(0, 10));
-        
-        if (!data || !Array.isArray(data) || data.length === 0) {
-            throw new Error('상승 코인 데이터가 배열이 아니거나 비어있음');
+            console.log('📈 상승 코인 데이터 요청 시작...');
+            try {
+                const url = 'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=percent_change_24h_desc&per_page=50&page=1&sparkline=false&price_change_percentage=24h';
+                
+                const data = await fetchWithRetry(url);
+                console.log('상승 코인 API 응답 (첫 10개):', data.slice(0, 10));
+                
+                if (!data || !Array.isArray(data) || data.length === 0) {
+                    throw new Error('상승 코인 데이터가 배열이 아니거나 비어있음');
+                }
+                
+                gainersData = data
+                    .filter(coin => 
+                        !CORE_COINS.includes(coin.id) && 
+                        coin.price_change_percentage_24h > 1 &&
+                        coin.market_cap_rank <= 500 &&
+                        coin.total_volume > 1000000
+                    )
+                    .slice(0, 6)
+                    .map(coin => ({
+                        id: coin.id,
+                        symbol: coin.symbol.toUpperCase(),
+                        name: coin.name,
+                        icon: '📈',
+                        price: coin.current_price,
+                        change: coin.price_change_percentage_24h,
+                        volume: coin.total_volume,
+                        marketCap: coin.market_cap
+                    }));
+                
+                console.log('처리된 상승 코인 데이터:', gainersData);
+                return gainersData;
+                
+            } catch (error) {
+                console.error('상승 코인 데이터 에러:', error);
+                gainersData = [
+                    { id: 'solana', symbol: 'SOL', name: 'Solana', icon: '📈', price: 185, change: 8.5, volume: 3200000000, marketCap: 85000000000 },
+                    { id: 'cardano', symbol: 'ADA', name: 'Cardano', icon: '📈', price: 0.95, change: 7.2, volume: 1200000000, marketCap: 33000000000 },
+                    { id: 'polygon', symbol: 'MATIC', name: 'Polygon', icon: '📈', price: 1.2, change: 6.8, volume: 800000000, marketCap: 12000000000 },
+                    { id: 'chainlink', symbol: 'LINK', name: 'Chainlink', icon: '📈', price: 25, change: 5.4, volume: 600000000, marketCap: 15000000000 },
+                    { id: 'uniswap', symbol: 'UNI', name: 'Uniswap', icon: '📈', price: 12, change: 4.9, volume: 400000000, marketCap: 8000000000 },
+                    { id: 'avalanche-2', symbol: 'AVAX', name: 'Avalanche', icon: '📈', price: 45, change: 4.2, volume: 700000000, marketCap: 18000000000 }
+                ];
+                return gainersData;
+            }
         }
-        
-        // 필터링 조건 완화 - 실제 상위 상승 코인들을 가져오기 위해
-        gainersData = data
-            .filter(coin => 
-                !CORE_COINS.includes(coin.id) && 
-                coin.price_change_percentage_24h != null &&
-                coin.price_change_percentage_24h > 0 &&
-                coin.current_price > 0
-                // 시가총액 순위 제한 제거
-                // 거래량 제한 대폭 완화 또는 제거
-            )
-            .slice(0, 8) // 8개로 변경
-            .map(coin => ({
-                id: coin.id,
-                symbol: coin.symbol.toUpperCase(),
-                name: coin.name,
-                icon: '📈',
-                price: coin.current_price,
-                change: coin.price_change_percentage_24h,
-                volume: coin.total_volume,
-                marketCap: coin.market_cap
-            }));
-        
-        console.log('처리된 상승 코인 데이터:', gainersData);
-        return gainersData;
-        
-    } catch (error) {
-        console.error('상승 코인 데이터 에러:', error);
-        gainersData = [
-            { id: 'solana', symbol: 'SOL', name: 'Solana', icon: '📈', price: 185, change: 8.5, volume: 3200000000, marketCap: 85000000000 },
-            { id: 'cardano', symbol: 'ADA', name: 'Cardano', icon: '📈', price: 0.95, change: 7.2, volume: 1200000000, marketCap: 33000000000 },
-            { id: 'polygon', symbol: 'MATIC', name: 'Polygon', icon: '📈', price: 1.2, change: 6.8, volume: 800000000, marketCap: 12000000000 },
-            { id: 'chainlink', symbol: 'LINK', name: 'Chainlink', icon: '📈', price: 25, change: 5.4, volume: 600000000, marketCap: 15000000000 },
-            { id: 'uniswap', symbol: 'UNI', name: 'Uniswap', icon: '📈', price: 12, change: 4.9, volume: 400000000, marketCap: 8000000000 },
-            { id: 'avalanche-2', symbol: 'AVAX', name: 'Avalanche', icon: '📈', price: 45, change: 4.2, volume: 700000000, marketCap: 18000000000 },
-            { id: 'dogecoin', symbol: 'DOGE', name: 'Dogecoin', icon: '📈', price: 0.38, change: 12.5, volume: 2200000000, marketCap: 55000000000 },
-            { id: 'shiba-inu', symbol: 'SHIB', name: 'Shiba Inu', icon: '📈', price: 0.000025, change: 15.8, volume: 1800000000, marketCap: 14000000000 }
-        ];
-        return gainersData;
-    }
-}
 
         async function fetchAllCryptoData() {
             const timestamp = new Date().toLocaleTimeString();
