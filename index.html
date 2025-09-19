@@ -201,80 +201,74 @@
         }
 
         async function fetchCoreCoins() {
-            console.log('📈 핵심 코인 데이터 요청 시작...');
-            try {
-                const url = `${API_BASE_URL}/simple/price?ids=${CORE_COINS.join(',')}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true`;
-                
-                const response = await fetch(url, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json',
-                        'x-cg-pro-api-key': API_KEY
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                console.log('핵심 코인 API 응답:', data);
-                
-                if (!data || Object.keys(data).length === 0) {
-                    throw new Error('빈 응답 데이터');
-                }
-                
-                coreCoinsData = [
-                    {
-                        id: 'bitcoin',
-                        symbol: 'BTC',
-                        name: 'Bitcoin',
-                        icon: '🔥',
-                        price: data.bitcoin?.usd || 0,
-                        change: data.bitcoin?.usd_24h_change || 0,
-                        volume: data.bitcoin?.usd_24h_vol || 0,
-                        marketCap: data.bitcoin?.usd_market_cap || 0
-                    },
-                    {
-                        id: 'ethereum',
-                        symbol: 'ETH',
-                        name: 'Ethereum',
-                        icon: '⭐',
-                        price: data.ethereum?.usd || 0,
-                        change: data.ethereum?.usd_24h_change || 0,
-                        volume: data.ethereum?.usd_24h_vol || 0,
-                        marketCap: data.ethereum?.usd_market_cap || 0
-                    },
-                    {
-                        id: 'ripple',
-                        symbol: 'XRP',
-                        name: 'Ripple',
-                        icon: '💎',
-                        price: data.ripple?.usd || 0,
-                        change: data.ripple?.usd_24h_change || 0,
-                        volume: data.ripple?.usd_24h_vol || 0,
-                        marketCap: data.ripple?.usd_market_cap || 0
-                    },
-                    {
-                        id: 'binancecoin',
-                        symbol: 'BNB',
-                        name: 'Binance',
-                        icon: '🪙',
-                        price: data.binancecoin?.usd || 0,
-                        change: data.binancecoin?.usd_24h_change || 0,
-                        volume: data.binancecoin?.usd_24h_vol || 0,
-                        marketCap: data.binancecoin?.usd_market_cap || 0
-                    }
-                ].filter(coin => coin.price > 0);
-                
-                console.log('처리된 핵심 코인 데이터:', coreCoinsData);
-                return coreCoinsData;
-                
-            } catch (error) {
-                console.error('핵심 코인 데이터 에러:', error);
-                throw error;
-            }
+    console.log('📈 핵심 코인 데이터 요청 시작...');
+    try {
+        const url = `https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,ripple,binancecoin&vs_currencies=usd&include_24hr_change=true&x_cg_pro_api_key=CG-AJku92n1VmZV1ZQ2mp46DA2C`;
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
+        
+        const data = await response.json();
+        console.log('핵심 코인 API 응답:', data);
+        
+        if (!data || Object.keys(data).length === 0) {
+            throw new Error('빈 응답 데이터');
+        }
+        
+        coreCoinsData = [
+            {
+                id: 'bitcoin',
+                symbol: 'BTC',
+                name: 'Bitcoin',
+                icon: '🔥',
+                price: data.bitcoin?.usd || 0,
+                change: data.bitcoin?.usd_24h_change || 0,
+                volume: data.bitcoin?.usd_24h_vol || 0,
+                marketCap: data.bitcoin?.usd_market_cap || 0
+            },
+            {
+                id: 'ethereum',
+                symbol: 'ETH',
+                name: 'Ethereum',
+                icon: '⭐',
+                price: data.ethereum?.usd || 0,
+                change: data.ethereum?.usd_24h_change || 0,
+                volume: data.ethereum?.usd_24h_vol || 0,
+                marketCap: data.ethereum?.usd_market_cap || 0
+            },
+            {
+                id: 'ripple',
+                symbol: 'XRP',
+                name: 'Ripple',
+                icon: '💎',
+                price: data.ripple?.usd || 0,
+                change: data.ripple?.usd_24h_change || 0,
+                volume: data.ripple?.usd_24h_vol || 0,
+                marketCap: data.ripple?.usd_market_cap || 0
+            },
+            {
+                id: 'binancecoin',
+                symbol: 'BNB',
+                name: 'Binance',
+                icon: '🪙',
+                price: data.binancecoin?.usd || 0,
+                change: data.binancecoin?.usd_24h_change || 0,
+                volume: data.binancecoin?.usd_24h_vol || 0,
+                marketCap: data.binancecoin?.usd_market_cap || 0
+            }
+        ].filter(coin => coin.price > 0);
+        
+        console.log('처리된 핵심 코인 데이터:', coreCoinsData);
+        return coreCoinsData;
+        
+    } catch (error) {
+        console.error('핵심 코인 데이터 에러:', error);
+        throw error;
+    }
+}
 
         async function fetchAllCryptoData() {
             const timestamp = new Date().toLocaleTimeString();
