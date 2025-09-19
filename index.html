@@ -1533,7 +1533,7 @@
         });
 
         window.addEventListener('error', (event) => {
-            console.error('❌ 전역 에러:', eventconsole.error('❌ 전역 에러:', event.error);
+            console.error('❌ 전역 에러:', event.error);
             updateDebugInfo('에러 발생', new Date().toLocaleTimeString(), event.error.message);
         });
 
